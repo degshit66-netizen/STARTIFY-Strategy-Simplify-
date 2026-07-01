@@ -1,0 +1,76 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@media print {
+  /* Hide unnecessary elements */
+  .no-print,
+  aside,
+  header,
+  footer,
+  button,
+  select,
+  input,
+  .no-print * {
+    display: none !important;
+  }
+
+  /* Make sure background is white and text is readable */
+  body, 
+  main,
+  div,
+  section,
+  article,
+  span,
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  table,
+  tr,
+  th,
+  td {
+    background-color: white !important;
+    background-image: none !important;
+    color: black !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    border-color: #000000 !important;
+  }
+
+  /* Optimize layout for full sheet print */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Keep table text crisp and clear */
+  table {
+    border-collapse: collapse !important;
+  }
+
+  th, td {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+    border-bottom: 1px solid #111 !important;
+  }
+
+  /* Page break rules for clean reports */
+  .break-before-page {
+    page-break-before: always !important;
+    break-before: page !important;
+    margin-top: 2rem !important;
+  }
+}
