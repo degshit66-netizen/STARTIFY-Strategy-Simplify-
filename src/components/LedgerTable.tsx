@@ -260,19 +260,30 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
                     <td className="px-5 py-3 font-semibold text-zinc-800 dark:text-zinc-300">{cleanDate(row.date)}</td>
                     <td className="px-5 py-3 font-bold text-zinc-400 dark:text-zinc-500 text-[11px]">{row.month}</td>
                     <td className="px-5 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
-                        row.type === 'Sales' 
-                          ? 'bg-emerald-50 border-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-900/30 dark:text-emerald-400' 
-                          : isClosing 
-                            ? 'bg-zinc-50 border-zinc-200 text-zinc-600 dark:bg-zinc-950 dark:border-zinc-800'
-                            : isSetup 
-                              ? 'bg-indigo-50 border-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:border-indigo-900/30 dark:text-indigo-400'
-                              : 'bg-zinc-100 border-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200'
-                      }`}>
-                        {row.type === 'Expense' ? 'Purchase' : row.type}
-                        {row.taxType === 'Exempt' && <span className="ml-1 opacity-70 text-[9px] bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 px-1 rounded font-extrabold">Exempt</span>}
-                        {row.taxType === 'ZeroRated' && <span className="ml-1 opacity-70 text-[9px] bg-sky-200 dark:bg-sky-900 text-sky-800 dark:text-sky-200 px-1 rounded font-extrabold">Zero</span>}
-                      </span>
+                      <div className="flex flex-col items-start gap-1">
+                        <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                          row.type === 'Sales' 
+                            ? 'bg-emerald-50 border-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-900/30 dark:text-emerald-400' 
+                            : isClosing 
+                              ? 'bg-zinc-50 border-zinc-200 text-zinc-600 dark:bg-zinc-950 dark:border-zinc-800'
+                              : isSetup 
+                                ? 'bg-indigo-50 border-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:border-indigo-900/30 dark:text-indigo-400'
+                                : 'bg-zinc-100 border-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200'
+                        }`}>
+                          {row.type === 'Expense' ? 'Purchase' : row.type}
+                          {row.taxType === 'Exempt' && <span className="ml-1 opacity-70 text-[9px] bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 px-1 rounded font-extrabold">Exempt</span>}
+                          {row.taxType === 'ZeroRated' && <span className="ml-1 opacity-70 text-[9px] bg-sky-200 dark:bg-sky-900 text-sky-800 dark:text-sky-200 px-1 rounded font-extrabold">Zero</span>}
+                        </span>
+                        {row.itemType && (
+                          <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border ${
+                            row.itemType === 'Services'
+                              ? 'bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/20'
+                              : 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/20'
+                          }`}>
+                            {row.itemType}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-5 py-3 font-semibold text-zinc-500 dark:text-zinc-400">{row.category}</td>
                     <td className="px-5 py-3 font-bold text-zinc-800 dark:text-zinc-200 max-w-[200px] truncate">{row.payor}</td>

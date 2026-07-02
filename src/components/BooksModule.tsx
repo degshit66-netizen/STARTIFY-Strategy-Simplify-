@@ -329,6 +329,55 @@ export const BooksModule: React.FC<BooksModuleProps> = ({
     };
   }, [filteredLedger, ledger, yearFilter, monthFilter, quarterFilter]);
 
+  // Compute flattened GL entries with correct running balance
+  const flattenedGLEntries = useMemo(() => {
+    const result: any[] = [];
+    Object.keys(booksData.ledgerGroups).sort().forEach(code => {
+      const g = booksData.ledgerGroups[code];
+      const coa = getCoaDetails(g.name, 'Setup');
+      const isDebitNormal = coa.normal === 'Debit';
+      let currentBalance = g.begBalance;
+      
+      const sortedEntries = [...g.entries].sort((a, b) => a.date.localeCompare(b.date));
+      sortedEntries.forEach(entry => {
+        if (isDebitNormal) {
+          currentBalance = currentBalance + entry.debit - entry.credit;
+        } else {
+          currentBalance = currentBalance + entry.credit - entry.debit;
+        }
+        result.push({
+          accountTitle: `${code} - ${g.name}`,
+          date: entry.date,
+          ref: entry.ref,
+          debit: entry.debit,
+          credit: entry.credit,
+          runningBalance: currentBalance
+        });
+      });
+    });
+    return result;
+  }, [booksData.ledgerGroups]);
+
+  // Calculate dynamic rows count for each book
+  const totalRowsCount = useMemo(() => {
+    switch (selectedBook) {
+      case 'GeneralJournal':
+        return booksData.journalEntries.reduce((sum, entry) => sum + entry.lines.length, 0);
+      case 'GeneralLedger':
+        return flattenedGLEntries.length;
+      case 'SalesJournal':
+        return booksData.salesJournal.length;
+      case 'PurchasesJournal':
+        return booksData.purchasesJournal.length;
+      case 'CashReceipts':
+        return booksData.cashReceipts.length;
+      case 'CashDisbursements':
+        return booksData.cashDisbursements.length;
+      default:
+        return 0;
+    }
+  }, [selectedBook, booksData, flattenedGLEntries]);
+
   // RELIEF Exporter Data
   const reliefRows = useMemo(() => {
     const qMonths = monthsMap[reliefQuarter] || [];
@@ -674,280 +723,444 @@ PAGE NUMBER              : PAGE ${pageNum}
               </div>
             </div>
 
-            {/* THE LOOSELEAF SHEET (Beautiful Print Render) */}
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-sm overflow-hidden p-8 space-y-6 text-zinc-850 dark:text-zinc-200 text-left">
+            {/* THE LOOSELEAF SHEET (Beautiful Print Render matching BIR screenshots) */}
+            <div 
+              id="looseleafPrintContainer" 
+              className="bg-white dark:bg-zinc-900 border-2 border-zinc-950 dark:border-zinc-150 rounded-none shadow-sm p-6 sm:p-8 space-y-6 text-zinc-900 dark:text-zinc-100 text-left relative font-sans"
+            >
+              {/* Internal self-contained print overrides block */}
+              <style>{`
+                @media print {
+                  /* Hide all default layout margins, banners, sidebars, buttons, headers */
+                  body * {
+                    visibility: hidden !important;
+                  }
+                  #looseleafPrintContainer, #looseleafPrintContainer * {
+                    visibility: visible !important;
+                  }
+                  #looseleafPrintContainer {
+                    position: absolute !important;
+                    left: 0 !important;
+                    top: 0 !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    margin: 0 !important;
+                    padding: 1.5in 0.8in 0.8in 0.8in !important;
+                    border: 2px solid #000000 !important;
+                    box-shadow: none !important;
+                    background: white !important;
+                    color: black !important;
+                  }
+                  /* Page breaks, margins, etc */
+                  @page {
+                    size: portrait;
+                    margin: 0.5in;
+                  }
+                  /* Enforce sharp black solid borders */
+                  #looseleafPrintContainer th,
+                  #looseleafPrintContainer td {
+                    border-color: #000000 !important;
+                    color: #000000 !important;
+                    background-color: transparent !important;
+                  }
+                  #looseleafPrintContainer table {
+                    border-color: #000000 !important;
+                  }
+                  #looseleafPrintContainer .bg-zinc-50,
+                  #looseleafPrintContainer .bg-zinc-100,
+                  #looseleafPrintContainer .bg-zinc-950,
+                  #looseleafPrintContainer .bg-zinc-900 {
+                    background-color: #f4f4f5 !important;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                  }
+                }
+              `}</style>
               
-              {/* Official Stamp Header */}
-              <div className="border-b-2 border-zinc-900 dark:border-zinc-100 pb-5 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+              {/* Official stamp/authority header */}
+              <div className="flex justify-between items-start border-b-2 border-zinc-950 dark:border-zinc-700 pb-5">
                 <div className="space-y-1">
-                  <h2 className="text-xl font-extrabold uppercase tracking-widest font-sans text-zinc-900 dark:text-white">
-                    {companyConfig.companyName}
+                  <h2 className="text-xl font-black uppercase tracking-wider font-sans text-zinc-950 dark:text-white leading-none">
+                    {companyConfig.companyName || "COMPANY NAME"}
                   </h2>
-                  <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">TIN: <span className="font-bold">{companyConfig.tin}</span></p>
-                  <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Address: {companyConfig.address}</p>
+                  <p className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                    TIN: <span className="font-extrabold">{companyConfig.tin || "000-000-000-000"}</span> | PTU: ________________
+                  </p>
+                  <p className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-400">
+                    {companyConfig.address || "Business Address"}
+                  </p>
                 </div>
-                <div className="text-right space-y-0.5 font-mono text-[10px] bg-zinc-50 dark:bg-zinc-950/40 p-3 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/20">
-                  <p className="font-bold text-zinc-900 dark:text-white">BIR LOOSE-LEAF RECORD</p>
-                  <p>PTU NO: {companyConfig.ptuNo}</p>
-                  <p>Date Issued: 2026-01-01</p>
-                  <p>Page: Page 1 of 1</p>
+                <div className="border-2 border-zinc-950 dark:border-zinc-300 text-center font-mono w-28 py-2 px-3 bg-zinc-50 dark:bg-zinc-950 shrink-0">
+                  <span className="text-[9px] uppercase font-bold tracking-wider block text-zinc-500 dark:text-zinc-450">BOOK CODE</span>
+                  <span className="text-2xl font-black text-zinc-900 dark:text-white block mt-0.5">
+                    {selectedBook === 'GeneralJournal' && 'GJ'}
+                    {selectedBook === 'GeneralLedger' && 'GL'}
+                    {selectedBook === 'SalesJournal' && 'SJ'}
+                    {selectedBook === 'PurchasesJournal' && 'PJ'}
+                    {selectedBook === 'CashReceipts' && 'CRJ'}
+                    {selectedBook === 'CashDisbursements' && 'CDJ'}
+                  </span>
                 </div>
               </div>
 
               {/* Title Header */}
-              <div className="text-center space-y-1 py-2">
-                <h3 className="text-base font-extrabold uppercase tracking-widest text-zinc-900 dark:text-white">
-                  {selectedBook.replace(/([A-Z])/g, ' $1').trim().toUpperCase()}
+              <div className="text-center space-y-1.5 py-1">
+                <h3 className="text-lg font-black uppercase tracking-widest text-zinc-950 dark:text-white font-sans">
+                  {selectedBook === 'GeneralJournal' && 'GENERAL JOURNAL'}
+                  {selectedBook === 'GeneralLedger' && 'GENERAL LEDGER'}
+                  {selectedBook === 'SalesJournal' && 'SALES JOURNAL'}
+                  {selectedBook === 'PurchasesJournal' && 'PURCHASE JOURNAL'}
+                  {selectedBook === 'CashReceipts' && 'CASH RECEIPTS JOURNAL'}
+                  {selectedBook === 'CashDisbursements' && 'CASH DISBURSEMENTS JOURNAL'}
                 </h3>
-                <p className="text-xs italic text-zinc-500 font-medium">
-                  Period Covered: {monthFilter === 'ALL' ? `Calendar Year ${yearFilter}` : `${monthFilter} ${yearFilter}`}
+                <p className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                  Loose Leaf / BIR Compliance Printout • For the Period: {monthFilter === 'ALL' ? `Year ${yearFilter}` : `${monthFilter} ${yearFilter}`}
                 </p>
               </div>
 
-              {/* Dynamic Book Content Rendering */}
+              {/* Parametrical metadata table */}
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse border-2 border-zinc-950 dark:border-zinc-700 text-[11px] text-left font-sans">
+                  <tbody>
+                    <tr className="border-b-2 border-zinc-950 dark:border-zinc-700">
+                      <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-bold w-[15%] bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400">Company</td>
+                      <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 w-[35%] font-black text-zinc-900 dark:text-zinc-100">{companyConfig.companyName}</td>
+                      <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-bold w-[15%] bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400">Prepared</td>
+                      <td className="px-3 py-1.5 w-[35%] font-medium text-zinc-850 dark:text-zinc-200">
+                        {new Date().toLocaleString('en-US', { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: true })}
+                      </td>
+                    </tr>
+                    <tr className="border-b-2 border-zinc-950 dark:border-zinc-700">
+                      <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-bold bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400">Book</td>
+                      <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-black text-zinc-900 dark:text-zinc-100">
+                        {selectedBook === 'GeneralJournal' && 'General Journal'}
+                        {selectedBook === 'GeneralLedger' && 'General Ledger'}
+                        {selectedBook === 'SalesJournal' && 'Sales Journal'}
+                        {selectedBook === 'PurchasesJournal' && 'Purchase Journal'}
+                        {selectedBook === 'CashReceipts' && 'Cash Receipts Journal'}
+                        {selectedBook === 'CashDisbursements' && 'Cash Disbursements Journal'}
+                      </td>
+                      <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-bold bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400">Authority / PTU</td>
+                      <td className="px-3 py-1.5 font-bold text-zinc-850 dark:text-zinc-200">{companyConfig.ptuNo || '________________'}</td>
+                    </tr>
+                    <tr>
+                      <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-bold bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400">Rows</td>
+                      <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-mono font-bold text-zinc-900 dark:text-zinc-100">{totalRowsCount}</td>
+                      <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-bold bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400">Source</td>
+                      <td className="px-3 py-1.5 font-bold text-zinc-850 dark:text-zinc-200">Saved transactions</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Dynamic Book Content Grid Rendering */}
               <div className="overflow-x-auto min-w-0">
                 {selectedBook === 'GeneralJournal' && (
-                  <table className="w-full text-xs font-mono">
+                  <table className="w-full border-collapse border-2 border-zinc-950 dark:border-zinc-700 text-xs font-mono">
                     <thead>
-                      <tr className="border-b-2 border-zinc-900 dark:border-zinc-100 text-left font-bold text-zinc-800 dark:text-zinc-300">
-                        <th className="py-2.5 w-24">Date</th>
-                        <th className="py-2.5 w-28">Ref No.</th>
-                        <th className="py-2.5">Account Code & Title</th>
-                        <th className="py-2.5 text-right w-36">Debit (PHP)</th>
-                        <th className="py-2.5 text-right w-36">Credit (PHP)</th>
+                      <tr className="bg-zinc-50 dark:bg-zinc-950/40 border-b-2 border-zinc-950 dark:border-zinc-700 font-bold text-zinc-800 dark:text-zinc-300 text-left">
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-center w-24 uppercase tracking-wider text-[10px]">DATE</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-center w-28 uppercase tracking-wider text-[10px]">REF</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 uppercase tracking-wider text-[10px]">ACCOUNT TITLE</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right w-36 uppercase tracking-wider text-[10px]">DEBIT</th>
+                        <th className="px-3 py-2 text-right w-36 uppercase tracking-wider text-[10px]">CREDIT</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                    <tbody className="divide-y divide-zinc-950 dark:divide-zinc-700">
                       {booksData.journalEntries.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-8 text-center text-zinc-400 font-sans italic">Walang journal entries sa napiling panahon.</td>
+                          <td colSpan={5} className="py-8 text-center text-zinc-400 font-sans italic border-b border-zinc-950">Walang journal entries sa napiling panahon.</td>
                         </tr>
                       ) : (
                         booksData.journalEntries.map(row => (
                           <React.Fragment key={row.id}>
                             {row.lines.map((l, lIdx) => (
                               <tr key={`${row.id}-${lIdx}`} className="hover:bg-zinc-50/50">
-                                <td className="py-2 font-sans text-zinc-500 font-medium">{lIdx === 0 ? row.date : ''}</td>
-                                <td className="py-2 text-zinc-500">{lIdx === 0 ? row.ref : ''}</td>
-                                <td className={`py-2 ${l.credit > 0 ? 'pl-8 text-zinc-700 dark:text-zinc-400' : 'font-semibold text-zinc-900 dark:text-zinc-200'}`}>
+                                <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-sans text-center text-zinc-650 dark:text-zinc-400">
+                                  {lIdx === 0 ? row.date : ''}
+                                </td>
+                                <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-center text-zinc-650 dark:text-zinc-400 font-mono font-bold">
+                                  {lIdx === 0 ? row.ref : ''}
+                                </td>
+                                <td className={`border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 ${l.credit > 0 ? 'pl-8 text-zinc-700 dark:text-zinc-400' : 'font-semibold text-zinc-900 dark:text-zinc-200'}`}>
                                   {l.accountCode} - {l.accountName}
                                 </td>
-                                <td className="py-2 text-right">{l.debit > 0 ? formatCurrency(l.debit) : ''}</td>
-                                <td className="py-2 text-right">{l.credit > 0 ? formatCurrency(l.credit) : ''}</td>
+                                <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono font-bold">
+                                  {l.debit > 0 ? formatCurrency(l.debit) : '0.00'}
+                                </td>
+                                <td className="px-3 py-1.5 text-right font-mono font-bold">
+                                  {l.credit > 0 ? formatCurrency(l.credit) : '0.00'}
+                                </td>
                               </tr>
                             ))}
-                            <tr className="bg-zinc-50/20 dark:bg-zinc-950/10">
-                              <td></td>
-                              <td></td>
-                              <td colSpan={3} className="py-1.5 pl-4 text-[10px] text-zinc-500 dark:text-zinc-400 italic font-sans">
-                                Particulars: {row.particulars}
-                              </td>
-                            </tr>
                           </React.Fragment>
                         ))
                       )}
+                      {/* Total row matching page 1 */}
+                      <tr className="font-black bg-zinc-50 dark:bg-zinc-950 border-t-2 border-zinc-950 dark:border-zinc-700">
+                        <td colSpan={3} className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right uppercase tracking-wider text-[10px]">TOTAL</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">
+                          {formatCurrency(booksData.journalEntries.reduce((sum, e) => sum + e.totalDebit, 0))}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono">
+                          {formatCurrency(booksData.journalEntries.reduce((sum, e) => sum + e.totalCredit, 0))}
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
                 )}
 
                 {selectedBook === 'GeneralLedger' && (
-                  <div className="space-y-8 font-mono">
-                    {Object.keys(booksData.ledgerGroups).length === 0 ? (
-                      <p className="py-8 text-center text-zinc-400 font-sans italic">Walang active ledger accounts sa napiling panahon.</p>
-                    ) : (
-                      Object.keys(booksData.ledgerGroups).sort().map(code => {
-                        const g = booksData.ledgerGroups[code];
-                        const totalDr = g.entries.reduce((sum, e) => sum + e.debit, 0);
-                        const totalCr = g.entries.reduce((sum, e) => sum + e.credit, 0);
-                        
-                        return (
-                          <div key={code} className="border border-zinc-200/60 dark:border-zinc-800/50 rounded-2xl p-4 space-y-3">
-                            <div className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-950/40 p-2.5 rounded-xl font-sans">
-                              <h4 className="text-xs font-bold text-zinc-900 dark:text-white">
-                                ACCOUNT: {g.code} - {g.name.toUpperCase()}
-                              </h4>
-                              <div className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 font-mono">
-                                Beg Bal: {formatCurrency(g.begBalance)}
-                              </div>
-                            </div>
-
-                            <table className="w-full text-[11px]">
-                              <thead>
-                                <tr className="border-b border-zinc-900 dark:border-zinc-100 text-left font-bold text-zinc-800 dark:text-zinc-300">
-                                  <th className="pb-1.5 w-24">Date</th>
-                                  <th className="pb-1.5 w-28">Ref No.</th>
-                                  <th className="pb-1.5">Particulars</th>
-                                  <th className="pb-1.5 text-right w-28">Debit</th>
-                                  <th className="pb-1.5 text-right w-28">Credit</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                                {g.entries.map((e, idx) => (
-                                  <tr key={idx} className="hover:bg-zinc-50/50">
-                                    <td className="py-1.5 font-sans">{e.date}</td>
-                                    <td className="py-1.5 text-zinc-500">{e.ref}</td>
-                                    <td className="py-1.5 text-zinc-600 dark:text-zinc-400 font-sans">{e.particulars}</td>
-                                    <td className="py-1.5 text-right">{e.debit > 0 ? formatCurrency(e.debit) : ''}</td>
-                                    <td className="py-1.5 text-right">{e.credit > 0 ? formatCurrency(e.credit) : ''}</td>
-                                  </tr>
-                                ))}
-                                <tr className="font-bold border-t border-zinc-900">
-                                  <td colSpan={3} className="py-1.5 text-right font-sans">Period Totals:</td>
-                                  <td className="py-1.5 text-right">{formatCurrency(totalDr)}</td>
-                                  <td className="py-1.5 text-right">{formatCurrency(totalCr)}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
-
-                {selectedBook === 'CashReceipts' && (
-                  <table className="w-full text-xs font-mono">
+                  <table className="w-full border-collapse border-2 border-zinc-950 dark:border-zinc-700 text-xs font-mono">
                     <thead>
-                      <tr className="border-b-2 border-zinc-900 dark:border-zinc-100 text-left font-bold text-zinc-800 dark:text-zinc-300">
-                        <th className="py-2.5">Date</th>
-                        <th className="py-2.5">Ref No.</th>
-                        <th className="py-2.5">Payor / Customer</th>
-                        <th className="py-2.5 text-right">Cash Dr (1010)</th>
-                        <th className="py-2.5 text-right">AR Cr (1020)</th>
-                        <th className="py-2.5 text-right">Sales Cr (4010)</th>
-                        <th className="py-2.5 text-right">Output VAT (2110)</th>
-                        <th className="py-2.5">Other Accounts</th>
+                      <tr className="bg-zinc-50 dark:bg-zinc-950/40 border-b-2 border-zinc-950 dark:border-zinc-700 font-bold text-zinc-800 dark:text-zinc-300 text-left">
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 uppercase tracking-wider text-[10px]">ACCOUNT TITLE</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-center w-24 uppercase tracking-wider text-[10px]">DATE</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-center w-28 uppercase tracking-wider text-[10px]">REF</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right w-32 uppercase tracking-wider text-[10px]">DEBIT</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right w-32 uppercase tracking-wider text-[10px]">CREDIT</th>
+                        <th className="px-3 py-2 text-right w-36 uppercase tracking-wider text-[10px]">RUNNING BALANCE</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                      {booksData.cashReceipts.length === 0 ? (
+                    <tbody className="divide-y divide-zinc-950 dark:divide-zinc-700">
+                      {flattenedGLEntries.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="py-8 text-center text-zinc-400 font-sans italic">Walang cash receipts sa napiling panahon.</td>
+                          <td colSpan={6} className="py-8 text-center text-zinc-400 font-sans italic border-b border-zinc-950">Walang ledger entries sa napiling panahon.</td>
                         </tr>
                       ) : (
-                        booksData.cashReceipts.map((r, idx) => (
+                        flattenedGLEntries.map((e, idx) => (
                           <tr key={idx} className="hover:bg-zinc-50/50">
-                            <td className="py-2 font-sans">{r.date}</td>
-                            <td className="py-2 text-zinc-500">{r.ref}</td>
-                            <td className="py-2 font-sans font-semibold text-zinc-900 dark:text-zinc-200">{r.payor}</td>
-                            <td className="py-2 text-right font-bold text-emerald-600 dark:text-emerald-400">{r.cashDebit > 0 ? formatCurrency(r.cashDebit) : ''}</td>
-                            <td className="py-2 text-right">{r.arCredit > 0 ? formatCurrency(r.arCredit) : ''}</td>
-                            <td className="py-2 text-right">{r.salesCredit > 0 ? formatCurrency(r.salesCredit) : ''}</td>
-                            <td className="py-2 text-right">{r.vatCredit > 0 ? formatCurrency(r.vatCredit) : ''}</td>
-                            <td className="py-2 font-sans text-zinc-500 italic max-w-[150px] truncate">{r.other}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-200 text-[11px]">
+                              {e.accountTitle}
+                            </td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-center font-sans text-zinc-650 dark:text-zinc-400">
+                              {e.date}
+                            </td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-center text-zinc-650 dark:text-zinc-400 font-mono font-bold">
+                              {e.ref}
+                            </td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono">
+                              {e.debit > 0 ? formatCurrency(e.debit) : '0.00'}
+                            </td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono">
+                              {e.credit > 0 ? formatCurrency(e.credit) : '0.00'}
+                            </td>
+                            <td className="px-3 py-1.5 text-right font-mono font-bold text-zinc-900 dark:text-zinc-200">
+                              {formatCurrency(e.runningBalance)}
+                            </td>
                           </tr>
                         ))
                       )}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedBook === 'CashReceipts' && (
+                  <table className="w-full border-collapse border-2 border-zinc-950 dark:border-zinc-700 text-xs font-mono">
+                    <thead>
+                      <tr className="bg-zinc-50 dark:bg-zinc-950/40 border-b-2 border-zinc-950 dark:border-zinc-700 font-bold text-zinc-800 dark:text-zinc-300 text-left">
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-center w-24 uppercase tracking-wider text-[10px]">DATE</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-center w-28 uppercase tracking-wider text-[10px]">OR/REF NO.</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 uppercase tracking-wider text-[10px]">RECEIVED FROM</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 uppercase tracking-wider text-[10px]">PARTICULARS</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right w-32 uppercase tracking-wider text-[10px]">DEBIT CASH</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right w-32 uppercase tracking-wider text-[10px]">DEBIT CWT</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right w-32 uppercase tracking-wider text-[10px]">CREDIT SALES</th>
+                        <th className="px-3 py-2 text-right w-32 uppercase tracking-wider text-[10px]">CREDIT OUTPUT VAT</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-950 dark:divide-zinc-700">
+                      {booksData.cashReceipts.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-8 text-center text-zinc-400 font-sans italic border-b border-zinc-950">Walang cash receipts sa napiling panahon.</td>
+                        </tr>
+                      ) : (
+                        booksData.cashReceipts.map((r, idx) => (
+                          <tr key={idx} className="hover:bg-zinc-50/50 border-b border-zinc-950 dark:border-zinc-700">
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-center font-sans">{r.date}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-center font-mono font-bold text-zinc-500">{r.ref}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-200">{r.payor}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-sans text-zinc-650 dark:text-zinc-400">{r.particulars}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">{r.cashDebit > 0 ? formatCurrency(r.cashDebit) : '0.00'}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono">{r.ewtDebit > 0 ? formatCurrency(r.ewtDebit) : '0.00'}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono">{r.salesCredit > 0 ? formatCurrency(r.salesCredit) : '0.00'}</td>
+                            <td className="px-3 py-1.5 text-right font-mono text-blue-600 dark:text-blue-400">{r.vatCredit > 0 ? formatCurrency(r.vatCredit) : '0.00'}</td>
+                          </tr>
+                        ))
+                      )}
+                      {/* CRJ Total row matching page 5 */}
+                      <tr className="font-black bg-zinc-50 dark:bg-zinc-950 border-t-2 border-zinc-950 dark:border-zinc-700">
+                        <td colSpan={4} className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right uppercase tracking-wider text-[10px]">TOTAL</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashReceipts.reduce((sum, r) => sum + r.cashDebit, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashReceipts.reduce((sum, r) => sum + r.ewtDebit, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashReceipts.reduce((sum, r) => sum + r.salesCredit, 0))}</td>
+                        <td className="px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashReceipts.reduce((sum, r) => sum + r.vatCredit, 0))}</td>
+                      </tr>
                     </tbody>
                   </table>
                 )}
 
                 {selectedBook === 'CashDisbursements' && (
-                  <table className="w-full text-xs font-mono">
+                  <table className="w-full border-collapse border-2 border-zinc-950 dark:border-zinc-700 text-xs font-mono">
                     <thead>
-                      <tr className="border-b-2 border-zinc-900 dark:border-zinc-100 text-left font-bold text-zinc-800 dark:text-zinc-300">
-                        <th className="py-2.5">Date</th>
-                        <th className="py-2.5">Ref No.</th>
-                        <th className="py-2.5">Supplier / Payee</th>
-                        <th className="py-2.5 text-right">Cash Cr (1010)</th>
-                        <th className="py-2.5 text-right">AP Dr (2010)</th>
-                        <th className="py-2.5 text-right">Purch Dr (5010)</th>
-                        <th className="py-2.5 text-right">Input VAT (1070)</th>
-                        <th className="py-2.5">Other Accounts</th>
+                      <tr className="bg-zinc-50 dark:bg-zinc-950/40 border-b-2 border-zinc-950 dark:border-zinc-700 font-bold text-zinc-800 dark:text-zinc-300 text-left">
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-center w-24 uppercase tracking-wider text-[10px]">DATE</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-center w-28 uppercase tracking-wider text-[10px]">VOUCHER/REF NO.</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 uppercase tracking-wider text-[10px]">PAID TO</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 uppercase tracking-wider text-[10px]">PARTICULARS</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right w-32 uppercase tracking-wider text-[10px]">DEBIT EXPENSE</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right w-32 uppercase tracking-wider text-[10px]">DEBIT INPUT VAT</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right w-32 uppercase tracking-wider text-[10px]">CREDIT CASH</th>
+                        <th className="px-3 py-2 text-right w-32 uppercase tracking-wider text-[10px]">CREDIT EWT PAYABLE</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                    <tbody className="divide-y divide-zinc-950 dark:divide-zinc-700">
                       {booksData.cashDisbursements.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="py-8 text-center text-zinc-400 font-sans italic">Walang cash disbursements sa napiling panahon.</td>
+                          <td colSpan={8} className="py-8 text-center text-zinc-400 font-sans italic border-b border-zinc-950">Walang cash disbursements sa napiling panahon.</td>
                         </tr>
                       ) : (
                         booksData.cashDisbursements.map((r, idx) => (
-                          <tr key={idx} className="hover:bg-zinc-50/50">
-                            <td className="py-2 font-sans">{r.date}</td>
-                            <td className="py-2 text-zinc-500">{r.ref}</td>
-                            <td className="py-2 font-sans font-semibold text-zinc-900 dark:text-zinc-200">{r.payee}</td>
-                            <td className="py-2 text-right font-bold text-red-600 dark:text-red-400">{r.cashCredit > 0 ? formatCurrency(r.cashCredit) : ''}</td>
-                            <td className="py-2 text-right">{r.apDebit > 0 ? formatCurrency(r.apDebit) : ''}</td>
-                            <td className="py-2 text-right">{r.purchaseDebit > 0 ? formatCurrency(r.purchaseDebit) : ''}</td>
-                            <td className="py-2 text-right">{r.vatDebit > 0 ? formatCurrency(r.vatDebit) : ''}</td>
-                            <td className="py-2 font-sans text-zinc-500 italic max-w-[150px] truncate">{r.other}</td>
+                          <tr key={idx} className="hover:bg-zinc-50/50 border-b border-zinc-950 dark:border-zinc-700">
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-center font-sans">{r.date}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-center font-mono font-bold text-zinc-500">{r.ref}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-200">{r.payee}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-sans text-zinc-650 dark:text-zinc-400">{r.particulars}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono font-bold">{r.purchaseDebit > 0 ? formatCurrency(r.purchaseDebit) : '0.00'}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono text-emerald-600 dark:text-emerald-400">{r.vatDebit > 0 ? formatCurrency(r.vatDebit) : '0.00'}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono text-red-600 dark:text-red-400">{r.cashCredit > 0 ? formatCurrency(r.cashCredit) : '0.00'}</td>
+                            <td className="px-3 py-1.5 text-right font-mono text-zinc-600 dark:text-zinc-300">{r.ewtCredit > 0 ? formatCurrency(r.ewtCredit) : '0.00'}</td>
                           </tr>
                         ))
                       )}
+                      {/* CDJ Total row matching page 6 */}
+                      <tr className="font-black bg-zinc-50 dark:bg-zinc-950 border-t-2 border-zinc-950 dark:border-zinc-700">
+                        <td colSpan={4} className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right uppercase tracking-wider text-[10px]">TOTAL</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashDisbursements.reduce((sum, r) => sum + r.purchaseDebit, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashDisbursements.reduce((sum, r) => sum + r.vatDebit, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashDisbursements.reduce((sum, r) => sum + r.cashCredit, 0))}</td>
+                        <td className="px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashDisbursements.reduce((sum, r) => sum + r.ewtCredit, 0))}</td>
+                      </tr>
                     </tbody>
                   </table>
                 )}
 
                 {selectedBook === 'SalesJournal' && (
-                  <table className="w-full text-xs font-mono">
+                  <table className="w-full border-collapse border-2 border-zinc-950 dark:border-zinc-700 text-[10px] font-mono">
                     <thead>
-                      <tr className="border-b-2 border-zinc-900 dark:border-zinc-100 text-left font-bold text-zinc-800 dark:text-zinc-300">
-                        <th className="py-2.5">Date</th>
-                        <th className="py-2.5">Invoice No.</th>
-                        <th className="py-2.5">Customer Name</th>
-                        <th className="py-2.5 text-right">Gross Sales</th>
-                        <th className="py-2.5 text-right">Vatable Net</th>
-                        <th className="py-2.5 text-right">Exempt</th>
-                        <th className="py-2.5 text-right">Output VAT</th>
+                      <tr className="bg-zinc-50 dark:bg-zinc-950/40 border-b-2 border-zinc-950 dark:border-zinc-700 font-bold text-zinc-800 dark:text-zinc-300 text-left">
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-center w-16 uppercase tracking-wider">DATE</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-center w-20 uppercase tracking-wider">INVOICE NO.</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 uppercase tracking-wider">CUSTOMER NAME</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-center w-24 uppercase tracking-wider">TIN</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 uppercase tracking-wider">ADDRESS</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 uppercase tracking-wider">PARTICULARS</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right w-24 uppercase tracking-wider">GROSS SALES</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right w-24 uppercase tracking-wider">VATABLE SALES</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right w-20 uppercase tracking-wider">OUTPUT VAT</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right w-20 uppercase tracking-wider">EXEMPT SALES</th>
+                        <th className="px-2 py-2 text-right w-20 uppercase tracking-wider font-bold">ZERO RATED SALES</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                    <tbody className="divide-y divide-zinc-950 dark:divide-zinc-700">
                       {booksData.salesJournal.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="py-8 text-center text-zinc-400 font-sans italic">Walang record ng benta sa napiling panahon.</td>
+                          <td colSpan={11} className="py-8 text-center text-zinc-400 font-sans italic border-b border-zinc-950">Walang record ng benta sa napiling panahon.</td>
                         </tr>
                       ) : (
                         booksData.salesJournal.map((r, idx) => (
-                          <tr key={idx} className="hover:bg-zinc-50/50">
-                            <td className="py-2 font-sans">{r.date}</td>
-                            <td className="py-2 text-zinc-500">{r.ref}</td>
-                            <td className="py-2 font-sans font-semibold text-zinc-900 dark:text-zinc-200">{r.customer}</td>
-                            <td className="py-2 text-right font-semibold">{formatCurrency(r.gross)}</td>
-                            <td className="py-2 text-right">{r.taxable > 0 ? formatCurrency(r.taxable) : ''}</td>
-                            <td className="py-2 text-right">{r.exempt > 0 ? formatCurrency(r.exempt) : ''}</td>
-                            <td className="py-2 text-right text-blue-600 dark:text-blue-500">{r.vat > 0 ? formatCurrency(r.vat) : ''}</td>
+                          <tr key={idx} className="hover:bg-zinc-50/50 border-b border-zinc-950 dark:border-zinc-700">
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-center font-sans">{r.date}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-center font-mono font-bold text-zinc-500">{r.ref}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-200">{r.customer}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-center">{r.tin}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans text-zinc-600 dark:text-zinc-400 truncate max-w-[120px]" title={r.address}>{r.address}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans text-zinc-650 dark:text-zinc-400 truncate max-w-[100px]" title={r.particulars}>{r.particulars}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono font-bold">{formatCurrency(r.gross)}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono">{r.taxable > 0 ? formatCurrency(r.taxable) : '0.00'}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono text-blue-600 dark:text-blue-400">{r.vat > 0 ? formatCurrency(r.vat) : '0.00'}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono text-zinc-500">{r.exempt > 0 ? formatCurrency(r.exempt) : '0.00'}</td>
+                            <td className="px-2 py-1.5 text-right font-mono text-zinc-500">{r.zeroRated > 0 ? formatCurrency(r.zeroRated) : '0.00'}</td>
                           </tr>
                         ))
                       )}
+                      {/* SJ Total row matching page 3 */}
+                      <tr className="font-black bg-zinc-50 dark:bg-zinc-950 border-t-2 border-zinc-950 dark:border-zinc-700">
+                        <td colSpan={6} className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right uppercase tracking-wider text-[9px]">TOTAL</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.salesJournal.reduce((sum, r) => sum + r.gross, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.salesJournal.reduce((sum, r) => sum + r.taxable, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.salesJournal.reduce((sum, r) => sum + r.vat, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.salesJournal.reduce((sum, r) => sum + r.exempt, 0))}</td>
+                        <td className="px-2 py-2 text-right font-mono">{formatCurrency(booksData.salesJournal.reduce((sum, r) => sum + r.zeroRated, 0))}</td>
+                      </tr>
                     </tbody>
                   </table>
                 )}
 
                 {selectedBook === 'PurchasesJournal' && (
-                  <table className="w-full text-xs font-mono">
+                  <table className="w-full border-collapse border-2 border-zinc-950 dark:border-zinc-700 text-[10px] font-mono">
                     <thead>
-                      <tr className="border-b-2 border-zinc-900 dark:border-zinc-100 text-left font-bold text-zinc-800 dark:text-zinc-300">
-                        <th className="py-2.5">Date</th>
-                        <th className="py-2.5">Ref No.</th>
-                        <th className="py-2.5">Supplier Name</th>
-                        <th className="py-2.5 text-right">Gross Cost</th>
-                        <th className="py-2.5 text-right">Vatable Net</th>
-                        <th className="py-2.5 text-right">Exempt</th>
-                        <th className="py-2.5 text-right">Input VAT</th>
+                      <tr className="bg-zinc-50 dark:bg-zinc-950/40 border-b-2 border-zinc-950 dark:border-zinc-700 font-bold text-zinc-800 dark:text-zinc-300 text-left">
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-center w-16 uppercase tracking-wider">DATE</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-center w-20 uppercase tracking-wider">REFERENCE</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 uppercase tracking-wider">SUPPLIER NAME</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-center w-24 uppercase tracking-wider">TIN</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 uppercase tracking-wider">ADDRESS</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 uppercase tracking-wider font-bold">PARTICULARS</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right w-24 uppercase tracking-wider">GROSS PURCHASE</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right w-24 uppercase tracking-wider">VATABLE PURCHASE</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right w-20 uppercase tracking-wider">INPUT VAT</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right w-20 uppercase tracking-wider">EXEMPT PURCHASE</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right w-20 uppercase tracking-wider">ZERO RATED</th>
+                        <th className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right w-16 uppercase tracking-wider">EWT</th>
+                        <th className="px-2 py-2 text-left w-24 uppercase tracking-wider">EXPENSE CATEGORY</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                    <tbody className="divide-y divide-zinc-950 dark:divide-zinc-700">
                       {booksData.purchasesJournal.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="py-8 text-center text-zinc-400 font-sans italic">Walang record ng pagbili sa napiling panahon.</td>
+                          <td colSpan={13} className="py-8 text-center text-zinc-400 font-sans italic border-b border-zinc-950">Walang record ng pagbili sa napiling panahon.</td>
                         </tr>
                       ) : (
                         booksData.purchasesJournal.map((r, idx) => (
-                          <tr key={idx} className="hover:bg-zinc-50/50">
-                            <td className="py-2 font-sans">{r.date}</td>
-                            <td className="py-2 text-zinc-500">{r.ref}</td>
-                            <td className="py-2 font-sans font-semibold text-zinc-900 dark:text-zinc-200">{r.vendor}</td>
-                            <td className="py-2 text-right font-semibold">{formatCurrency(r.gross)}</td>
-                            <td className="py-2 text-right">{r.taxable > 0 ? formatCurrency(r.taxable) : ''}</td>
-                            <td className="py-2 text-right">{r.exempt > 0 ? formatCurrency(r.exempt) : ''}</td>
-                            <td className="py-2 text-right text-emerald-600 dark:text-emerald-500">{r.vat > 0 ? formatCurrency(r.vat) : ''}</td>
+                          <tr key={idx} className="hover:bg-zinc-50/50 border-b border-zinc-950 dark:border-zinc-700">
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-center font-sans">{r.date}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-center font-mono font-bold text-zinc-500">{r.ref}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-200">{r.vendor}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-center">{r.tin}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans text-zinc-600 dark:text-zinc-400 truncate max-w-[100px]" title={r.address}>{r.address}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans text-zinc-650 dark:text-zinc-400 truncate max-w-[100px]" title={r.particulars}>{r.particulars}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono font-bold">{formatCurrency(r.gross)}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono">{r.taxable > 0 ? formatCurrency(r.taxable) : '0.00'}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono text-emerald-600 dark:text-emerald-400">{r.vat > 0 ? formatCurrency(r.vat) : '0.00'}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono text-zinc-500">{r.exempt > 0 ? formatCurrency(r.exempt) : '0.00'}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono text-zinc-500">{r.zeroRated > 0 ? formatCurrency(r.zeroRated) : '0.00'}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono text-red-600 dark:text-red-400">{r.ewt > 0 ? formatCurrency(r.ewt) : '0.00'}</td>
+                            <td className="px-2 py-1.5 font-sans font-semibold text-zinc-600 dark:text-zinc-400 truncate max-w-[100px]" title={r.category}>{r.category}</td>
                           </tr>
                         ))
                       )}
+                      {/* PJ Total row matching page 4 */}
+                      <tr className="font-black bg-zinc-50 dark:bg-zinc-950 border-t-2 border-zinc-950 dark:border-zinc-700">
+                        <td colSpan={6} className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right uppercase tracking-wider text-[9px]">TOTAL</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + r.gross, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + r.taxable, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + r.vat, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + r.exempt, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + r.zeroRated, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + r.ewt, 0))}</td>
+                        <td></td>
+                      </tr>
                     </tbody>
                   </table>
                 )}
+              </div>
+
+              {/* Prepared/PTU/Page signature footer matching screenshots */}
+              <div className="border-t-2 border-zinc-950 dark:border-zinc-750 pt-4 flex flex-col sm:flex-row justify-between items-center text-[10px] font-sans font-bold text-zinc-800 dark:text-zinc-200">
+                <div>Prepared by: <span className="font-extrabold">{companyConfig.companyName}</span></div>
+                <div>PTU: ________________</div>
+                <div>Page ___ of ___</div>
               </div>
 
             </div>

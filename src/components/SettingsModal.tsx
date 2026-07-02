@@ -11,6 +11,7 @@ interface SettingsModalProps {
   updateTenantLogo?: (url: string) => void;
   users?: SystemUser[];
   setUsers?: React.Dispatch<React.SetStateAction<SystemUser[]>>;
+  onUpdateTenant?: (tenant: Tenant) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -20,9 +21,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   currentTenant,
   updateTenantLogo,
   users = [],
-  setUsers
+  setUsers,
+  onUpdateTenant
 }) => {
-  const [activeSettingsTab, setActiveSettingsTab] = useState<'company' | 'team'>('company');
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'company' | 'team' | 'billing'>('company');
 
   const [config, setConfig] = useState<CompanyConfig>({
     companyName: 'STRATIFY (System+Strategy)',
@@ -40,6 +42,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberRole, setNewMemberRole] = useState<'tenant_admin' | 'accountant' | 'staff'>('accountant');
 
+  // Billing & Subscription states
+  const [billingPlan, setBillingPlan] = useState<'monthly' | 'annual'>('monthly');
+  const [requestedUsers, setRequestedUsers] = useState<number>(5);
+
   React.useEffect(() => {
     try {
       const stored = localStorage.getItem('stratify_company_config');
@@ -54,10 +60,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   }, []);
 
   React.useEffect(() => {
-    if (currentTenant && currentTenant.logo) {
-      setConfig(prev => ({ ...prev, logoUrl: currentTenant.logo || 'https://i.postimg.cc/5yGwSWWR/1782659487700.png' }));
+    if (currentTenant) {
+      if (currentTenant.logo) {
+        setConfig(prev => ({ ...prev, logoUrl: currentTenant.logo || 'https://i.postimg.cc/5yGwSWWR/1782659487700.png' }));
+      }
+      setRequestedUsers(currentTenant.userLimit || 5);
+      if (currentTenant.subscriptionType) {
+        setBillingPlan(currentTenant.subscriptionType);
+      }
     }
   }, [currentTenant]);
+
+  const handleSendSubscriptionRequest = () => {
+    if (!currentTenant) return;
+    if (requestedUsers < 1) {
+      showToast('User capacity must be at least 1.', 'error');
+      return;
+    }
+
+    const updated: Tenant = {
+      ...currentTenant,
+      subscriptionRequestStatus: 'pending',
+      subscriptionRequestPlan: billingPlan,
+      subscriptionRequestUserLimit: requestedUsers
+    };
+
+    if (onUpdateTenant) {
+      onUpdateTenant(updated);
+      showToast('Subscription request submitted to Super Admin for manual approval!', 'success');
+    } else {
+      showToast('Failed to connect to tenant state updates.', 'error');
+    }
+  };
 
   const handleSave = () => {
     const name = config.companyName.trim();
@@ -83,6 +117,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     
     if (!email || !name) {
       showToast('Please enter both name and email.', 'error');
+      return;
+    }
+
+    if (currentTenant?.subscriptionStatus === 'trial') {
+      showToast('Cannot add team users while under the Free Trial tier. Please subscribe to add team users.', 'error');
+      return;
+    }
+
+    const tenantUsers = users.filter(u => u.tenantId === currentTenant?.id);
+    const maxUsers = currentTenant?.userLimit || 1;
+    if (tenantUsers.length >= maxUsers) {
+      showToast(`User limit reached (${maxUsers} max). Please upgrade your subscription to add more users.`, 'error');
       return;
     }
 
@@ -198,9 +244,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 >
                   Team Members / Users
                 </button>
+                <button
+                  onClick={() => setActiveSettingsTab('billing')}
+                  className={`py-3 px-4 text-xs font-bold border-b-2 transition-all ${
+                    activeSettingsTab === 'billing'
+                      ? 'border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100'
+                      : 'border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+                  }`}
+                >
+                  Subscription & Billing
+                </button>
               </div>
 
-              {activeSettingsTab === 'company' ? (
+              {activeSettingsTab === 'company' && (
                 <div className="p-6 space-y-4 text-left max-h-[400px] overflow-y-auto">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">Company Name</label>
@@ -330,7 +386,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </button>
                   </div>
                 </div>
-              ) : (
+              )}
+
+              {activeSettingsTab === 'team' && (
                 <div className="p-6 space-y-5 text-left max-h-[400px] overflow-y-auto">
                   {/* Add New Member Form */}
                   <form onSubmit={handleAddMember} className="bg-zinc-50 dark:bg-zinc-950/40 p-4 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/40 space-y-3">
@@ -352,7 +410,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <div className="space-y-1">
                         <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 block">Email Address</label>
                         <input 
-                          type="email"
+                          type="type"
                           required
                           placeholder="maria@company.com"
                           value={newMemberEmail}
@@ -383,6 +441,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </button>
                     </div>
                   </form>
+
+                  {/* Explanatory Login Guide */}
+                  <div className="bg-blue-50/40 dark:bg-zinc-950/40 border border-blue-100/60 dark:border-zinc-800/60 rounded-2xl p-4 text-xs space-y-2 text-zinc-700 dark:text-zinc-300">
+                    <span className="font-bold text-blue-700 dark:text-blue-400 block uppercase tracking-wider text-[10px]">💡 How do added users access the system?</span>
+                    <p className="leading-relaxed">
+                      Once added here, your team members can immediately log in from the login screen using their <strong>registered email address</strong>.
+                    </p>
+                    <p className="leading-relaxed text-[11px] text-zinc-500">
+                      They can log in via <strong>Google Sign-In</strong> if their email is connected to a Google account, or they can simply enter their email with any secure password to activate and log into their sub-account.
+                    </p>
+                  </div>
 
                   {/* Team Members List */}
                   <div className="space-y-2">
@@ -422,6 +491,182 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                       ))}
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {activeSettingsTab === 'billing' && currentTenant && (
+                <div className="p-6 space-y-5 text-left max-h-[400px] overflow-y-auto">
+                  {/* Current Plan Overview Card */}
+                  <div className="bg-gradient-to-br from-indigo-950 via-zinc-900 to-zinc-950 text-white rounded-2xl border border-indigo-900/30 p-5 shadow-md relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-400 bg-indigo-950/80 px-2 py-0.5 rounded-full border border-indigo-800/30">Current Plan</span>
+                        <h4 className="text-base font-black tracking-tight text-white mt-1">
+                          {currentTenant.subscriptionStatus === 'trial' ? 'Free Trial (Trial)' : 'Premium Active Plan'}
+                        </h4>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${
+                        currentTenant.subscriptionStatus === 'active'
+                          ? 'bg-emerald-950 border-emerald-800 text-emerald-400'
+                          : currentTenant.subscriptionStatus === 'trial'
+                            ? 'bg-blue-950 border-blue-800 text-blue-400'
+                            : 'bg-zinc-800 border-zinc-700 text-zinc-400'
+                      }`}>
+                        {currentTenant.subscriptionStatus}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 pt-3 border-t border-zinc-800/50 text-xs">
+                      <div>
+                        <span className="text-zinc-500 block text-[10px] uppercase font-bold tracking-wider">User Capacity Seat</span>
+                        <span className="text-sm font-bold font-mono text-zinc-100">
+                          {currentTenant.subscriptionStatus === 'trial' ? '0 Users (Trial)' : `${currentTenant.userLimit || 0} Seat(s)`}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-zinc-500 block text-[10px] uppercase font-bold tracking-wider">Price Paid / Status</span>
+                        <span className="text-sm font-bold font-mono text-zinc-100">
+                          {currentTenant.subscriptionStatus === 'trial' ? '₱0.00 / mo' : `₱${(currentTenant.pricePaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} / mo`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pricing / Plan Configurator Form */}
+                  <div className="space-y-4">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Modify Subscription Plan</span>
+
+                    {/* Subscription Cycle Toggle */}
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 block">Billing Cycle</label>
+                      <div className="grid grid-cols-2 gap-2 bg-zinc-50 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                        <button
+                          type="button"
+                          onClick={() => setBillingPlan('monthly')}
+                          className={`py-2 px-3 rounded-lg text-xs font-bold transition-all ${
+                            billingPlan === 'monthly'
+                              ? 'bg-white dark:bg-zinc-900 text-zinc-950 dark:text-zinc-100 shadow-sm border border-zinc-200/50 dark:border-zinc-800/50'
+                              : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+                          }`}
+                        >
+                          Monthly Billing
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBillingPlan('annual')}
+                          className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                            billingPlan === 'annual'
+                              ? 'bg-white dark:bg-zinc-900 text-zinc-950 dark:text-zinc-100 shadow-sm border border-zinc-200/50 dark:border-zinc-800/50'
+                              : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+                          }`}
+                        >
+                          <span>Annual Billing</span>
+                          <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500 text-white rounded font-black uppercase tracking-wider">Save</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* User Limit Capacity Inputs */}
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 block">Desired User Capacity Limit</label>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          disabled={requestedUsers <= 1}
+                          onClick={() => setRequestedUsers(prev => Math.max(1, prev - 1))}
+                          className="w-10 h-10 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-950 dark:hover:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-700 dark:text-zinc-300 transition-colors disabled:opacity-40"
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          min={1}
+                          value={requestedUsers}
+                          onChange={(e) => setRequestedUsers(Math.max(1, parseInt(e.target.value) || 1))}
+                          className="flex-1 h-10 text-center font-mono text-xs font-bold bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:border-indigo-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setRequestedUsers(prev => prev + 1)}
+                          className="w-10 h-10 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-950 dark:hover:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-700 dark:text-zinc-300 transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-zinc-400">Total number of team user accounts your organization can authorize.</p>
+                    </div>
+
+                    {/* Dynamic Price Calculator Card */}
+                    <div className="bg-zinc-50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800/60 rounded-2xl p-4 text-xs space-y-3">
+                      <span className="font-bold text-zinc-800 dark:text-zinc-200 block uppercase tracking-wider text-[9px] flex items-center gap-1.5">
+                        💵 Premium Fee Breakdown
+                      </span>
+                      <div className="space-y-1.5 text-zinc-600 dark:text-zinc-400">
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span>Base Subscription Fee:</span>
+                          <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-200">
+                            {billingPlan === 'annual' ? '₱18,000.00 / yr' : '₱1,500.00 / mo'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span>User Seats Fee:</span>
+                          <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-200">
+                            {requestedUsers} seats x {billingPlan === 'annual' ? '₱6,000.00' : '₱500.00'} = 
+                            {billingPlan === 'annual' 
+                              ? ` ₱${(requestedUsers * 6000).toLocaleString(undefined, { minimumFractionDigits: 2 })} / yr`
+                              : ` ₱${(requestedUsers * 500).toLocaleString(undefined, { minimumFractionDigits: 2 })} / mo`
+                            }
+                          </span>
+                        </div>
+                        
+                        <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800 flex justify-between items-center text-sm">
+                          <span className="font-bold text-zinc-900 dark:text-zinc-100">Calculated Cost:</span>
+                          <div className="text-right">
+                            <span className="font-black font-mono text-indigo-600 dark:text-indigo-400 text-base block">
+                              ₱{
+                                billingPlan === 'annual'
+                                  ? ((1500 + requestedUsers * 500) * 12).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                                  : (1500 + requestedUsers * 500).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                              }
+                            </span>
+                            <span className="text-[9px] text-zinc-400 uppercase tracking-wider font-bold">
+                              {billingPlan === 'annual' ? 'billed annually' : 'billed monthly'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Submit / Status Button */}
+                    {currentTenant.subscriptionRequestStatus === 'pending' ? (
+                      <div className="bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl p-4 text-xs space-y-1.5">
+                        <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[10px]">
+                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                          Awaiting Approval
+                        </div>
+                        <p className="leading-relaxed text-[11px]">
+                          You have a pending request for a <strong>{currentTenant.subscriptionRequestPlan === 'annual' ? 'Annual' : 'Monthly'}</strong> premium plan with <strong>{currentTenant.subscriptionRequestUserLimit} user seat(s)</strong> capacity (Total Cost: ₱{
+                            (currentTenant.subscriptionRequestPlan === 'annual'
+                              ? (1500 + (currentTenant.subscriptionRequestUserLimit || 0) * 500) * 12
+                              : (1500 + (currentTenant.subscriptionRequestUserLimit || 0) * 500)
+                            ).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                          }).
+                        </p>
+                        <p className="text-[10px] text-zinc-500">
+                          The Super Admin is reviewing your subscription request and will approve it shortly.
+                        </p>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleSendSubscriptionRequest}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 text-xs rounded-xl uppercase tracking-wider transition-all shadow-md hover:shadow-indigo-500/20"
+                      >
+                        Send Subscription Request to Super Admin
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

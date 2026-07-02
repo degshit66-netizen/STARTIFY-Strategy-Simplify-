@@ -39,6 +39,9 @@ export const EntryModal: React.FC<EntryModalProps> = ({
   const [terms, setTerms] = useState('COD');
   const [cashInput, setCashInput] = useState('');
   const [arApInput, setArApInput] = useState('');
+  const [itemType, setItemType] = useState<'Goods' | 'Services'>('Goods');
+  const [ref, setRef] = useState('');
+  const [ewtRateSelect, setEwtRateSelect] = useState<'Auto' | '0%' | '1%' | '2%'>('Auto');
 
   useEffect(() => {
     if (isOpen) {
@@ -55,6 +58,23 @@ export const EntryModal: React.FC<EntryModalProps> = ({
         setTerms(initialData.terms || 'COD');
         setCashInput(initialData.amount_paid?.toString() || '');
         setArApInput(initialData.balance?.toString() || '');
+        setItemType(initialData.itemType || 'Goods');
+        setRef(initialData.ref || '');
+        if (initialData.ewt === 0) {
+          setEwtRateSelect('0%');
+        } else if (initialData.ewt) {
+          const calcTaxable = initialData.taxable || initialData.gross || 1;
+          const ratio = initialData.ewt / calcTaxable;
+          if (Math.abs(ratio - 0.01) < 0.005) {
+            setEwtRateSelect('1%');
+          } else if (Math.abs(ratio - 0.02) < 0.005) {
+            setEwtRateSelect('2%');
+          } else {
+            setEwtRateSelect('Auto');
+          }
+        } else {
+          setEwtRateSelect('0%');
+        }
       } else if (scanResult) {
         if (initialType) setType(initialType);
         setDate(new Date().toISOString().slice(0, 10));
@@ -65,6 +85,9 @@ export const EntryModal: React.FC<EntryModalProps> = ({
         setGrossInput(scanResult.gross);
         setCashInput(scanResult.gross);
         setArApInput('0');
+        setItemType('Goods');
+        setRef(scanResult.ref || '');
+        setEwtRateSelect('Auto');
       } else {
         if (initialType) setType(initialType);
         setDate(new Date().toISOString().slice(0, 10));
@@ -78,6 +101,9 @@ export const EntryModal: React.FC<EntryModalProps> = ({
         setTaxType('Vatable');
         setStatus('Cleared');
         setTerms('COD');
+        setItemType('Goods');
+        setRef('');
+        setEwtRateSelect('Auto');
       }
     }
   }, [isOpen, initialType, initialData, scanResult]);
@@ -144,6 +170,19 @@ export const EntryModal: React.FC<EntryModalProps> = ({
       vat = r2(gross - taxable);
     }
 
+    // Compute EWT (for Expense) / CWT (for Sales) based on Item Type & custom rate selection
+    let rate = 0;
+    if (ewtRateSelect === 'Auto') {
+      rate = itemType === 'Goods' ? 0.01 : 0.02;
+    } else if (ewtRateSelect === '1%') {
+      rate = 0.01;
+    } else if (ewtRateSelect === '2%') {
+      rate = 0.02;
+    } else {
+      rate = 0; // '0%'
+    }
+    const computedEwt = r2(taxable * rate);
+
     const months = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
     const d = new Date(date);
     const monthName = months[d.getMonth()];
@@ -169,11 +208,14 @@ export const EntryModal: React.FC<EntryModalProps> = ({
       status,
       terms,
       address: '',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      ewt: computedEwt,
+      itemType,
+      ref: ref.trim()
     };
 
     onSaveEntry(newEntry);
-    showToast('Transaction successfully posted to Ledger journal.', 'success');
+    showToast(`Transaction posted successfully. ${itemType} tax applied.`, 'success');
     
     // Reset Form
     setDate(new Date().toISOString().slice(0, 10));
@@ -187,12 +229,15 @@ export const EntryModal: React.FC<EntryModalProps> = ({
     setTerms('COD');
     setCashInput('');
     setArApInput('');
+    setItemType('Goods');
+    setRef('');
+    setEwtRateSelect('Auto');
     onClose();
   };
 
   const filteredCoa = coa.filter(c => {
     if (type === 'Sales') {
-      return c.type === 'Revenue' || c.type === 'Equity' || c.type === 'Asset';
+      return c.type === 'Revenue' || c.type === 'Income' || c.type === 'Equity' || c.type === 'Asset';
     } else {
       return c.type === 'Expense' || c.type === 'Asset' || c.type === 'Liability';
     }
@@ -259,6 +304,63 @@ export const EntryModal: React.FC<EntryModalProps> = ({
                       onChange={(e) => setDate(e.target.value)}
                       className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
                     />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
+                      {type === 'Sales' ? 'Invoice Number' : 'Reference Number'}
+                    </label>
+                    <input 
+                      type="text"
+                      placeholder={type === 'Sales' ? 'SI-0001' : 'REF-0001'}
+                      value={ref}
+                      onChange={(e) => setRef(e.target.value)}
+                      className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-blue-400 font-bold font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">Withholding Tax (EWT/CWT)</label>
+                    <select
+                      value={ewtRateSelect}
+                      onChange={(e) => setEwtRateSelect(e.target.value as any)}
+                      className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-blue-400 font-semibold"
+                    >
+                      <option value="Auto">Auto ({itemType === 'Goods' ? '1% Goods' : '2% Services'})</option>
+                      <option value="0%">No Withholding (0% / Exempt)</option>
+                      <option value="1%">1% Rate (Goods)</option>
+                      <option value="2%">2% Rate (Services)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="bg-zinc-50 dark:bg-zinc-950/40 p-3.5 rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">Item Nature (Goods vs. Services)</label>
+                    <select
+                      value={itemType}
+                      onChange={(e) => setItemType(e.target.value as 'Goods' | 'Services')}
+                      className="w-full text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2 text-zinc-800 dark:text-zinc-200 focus:outline-none font-bold"
+                    >
+                      <option value="Goods">Goods (Output VAT Goods / 1% EWT)</option>
+                      <option value="Services">Services (Output VAT Services / 2% EWT)</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1 flex flex-col justify-center text-left">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">Tax Treatment</span>
+                    <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">
+                      {type === 'Sales' 
+                        ? `Output VAT - ${itemType} (12%)` 
+                        : `Supplier EWT (${ewtRateSelect === 'Auto' ? (itemType === 'Goods' ? '1%' : '2%') : ewtRateSelect})`}
+                    </span>
+                    <span className="text-[9px] text-zinc-400 leading-none">
+                      {type === 'Sales' 
+                        ? 'Subject to VAT Relief Gross Sales of ' + itemType 
+                        : ewtRateSelect === '0%' 
+                          ? 'Exempt from Creditable Withholding Tax' 
+                          : `Withholding agent computes ${ewtRateSelect === 'Auto' ? (itemType === 'Goods' ? '1%' : '2%') : ewtRateSelect} tax`}
+                    </span>
                   </div>
                 </div>
 

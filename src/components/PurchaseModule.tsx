@@ -246,7 +246,18 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({
                 <tr key={r.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/10 transition-colors">
                   <td className="px-5 py-3.5 font-semibold text-zinc-800 dark:text-zinc-300">{cleanDate(r.date)}</td>
                   <td className="px-5 py-3.5 font-bold text-zinc-800 dark:text-zinc-200 truncate max-w-[200px]">{r.payor}</td>
-                  <td className="px-5 py-3.5 font-mono font-bold text-zinc-800 dark:text-zinc-300">{r.ref}</td>
+                  <td className="px-5 py-3.5">
+                    <div className="font-mono font-bold text-zinc-800 dark:text-zinc-300">{r.ref || '—'}</div>
+                    {r.itemType && (
+                      <span className={`inline-flex mt-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider ${
+                        r.itemType === 'Services'
+                          ? 'bg-purple-50 text-purple-700 border border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/20'
+                          : 'bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/20'
+                      }`}>
+                        {r.itemType}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-5 py-3.5 text-zinc-500 font-semibold">{r.category}</td>
                   <td className="px-5 py-3.5 text-right font-extrabold font-mono text-zinc-800 dark:text-zinc-200">{displayMoney(r.gross)}</td>
                   <td className="px-5 py-3.5 text-right font-medium font-mono text-zinc-500 dark:text-zinc-400">{displayMoney(parseNum(r.net) || (r.taxType === 'Vatable' ? parseNum(r.gross) / 1.12 : parseNum(r.gross)))}</td>

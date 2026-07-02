@@ -510,7 +510,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-zinc-950 flex flex-col font-sans transition-colors duration-300">
+    <div className="h-screen h-[100dvh] overflow-hidden bg-white dark:bg-zinc-950 flex flex-col font-sans transition-colors duration-300 overscroll-none">
       
       {showOnboarding && (
         <FeatureTour 
@@ -520,7 +520,7 @@ export default function App() {
       )}
       
       {/* HEADER SECTION (NO-PRINT) */}
-      <header className="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 border-b border-blue-900 text-white px-6 py-4 flex items-center justify-between no-print shadow-md">
+      <header className="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 border-b border-blue-900 text-white px-6 py-4 flex items-center justify-between no-print shadow-md shrink-0 z-30">
         <div className="flex items-center gap-4">
           {currentTenant?.logo ? (
             <img src={currentTenant.logo} alt="Logo" className="h-16 w-16 md:h-20 md:w-20 rounded-xl object-cover shadow-inner bg-white p-1" />
@@ -587,10 +587,10 @@ export default function App() {
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col md:flex-row min-h-0">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         
         {/* SIDEBAR NAVIGATION (NO-PRINT) */}
-        <aside className="w-full md:w-64 bg-gradient-to-b from-blue-950 via-indigo-950 to-blue-950 text-blue-100 border-r border-blue-900 no-print flex flex-col justify-between overflow-y-auto">
+        <aside className="w-full md:w-64 bg-gradient-to-b from-blue-950 via-indigo-950 to-blue-950 text-blue-100 border-r border-blue-900 no-print flex flex-col justify-between overflow-y-auto shrink-0 md:h-full overscroll-contain">
           <div className="p-4 space-y-6">
             {navCategories.map((cat, idx) => (
               <div key={idx} className="space-y-1.5">
@@ -632,7 +632,7 @@ export default function App() {
         </aside>
 
         {/* MAIN BODY WORKSPACE */}
-        <main className="flex-1 p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
+        <main className="flex-1 p-4 md:p-5 overflow-y-auto max-w-7xl mx-auto w-full overscroll-contain">
           
           {/* TAB WINDOW COMPONENT ROUTING */}
           <AnimatePresence mode="wait">
@@ -804,6 +804,10 @@ export default function App() {
         currentTenant={currentTenant}
         users={users}
         setUsers={setUsers}
+        onUpdateTenant={(updated) => {
+          setCurrentTenant(updated);
+          setTenants(prev => prev.map(t => t.id === updated.id ? updated : t));
+        }}
         updateTenantLogo={(url) => {
           if (currentTenant) {
             const updated = { ...currentTenant, logo: url };

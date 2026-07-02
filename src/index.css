@@ -9,6 +9,21 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+html, body, #root {
+  height: 100vh;
+  height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  overscroll-behavior: none;
+}
+
+.print-running-header,
+.print-running-footer {
+  display: none;
+}
+
 @media print {
   /* Hide unnecessary elements */
   .no-print,
@@ -99,6 +114,48 @@
     margin: 0 !important;
     max-width: 100% !important;
     width: 100% !important;
+  }
+
+  /* Loose-Leaf Margins and Bindings */
+  @page {
+    size: portrait;
+    margin: 1.2in 1in 1in 1.2in; /* Extra left margin for ring binder hole punches / binders */
+  }
+
+  .print-running-header {
+    display: flex !important;
+    justify-content: space-between;
+    position: fixed;
+    top: -0.8in;
+    left: 0;
+    right: 0;
+    font-size: 8px;
+    font-family: var(--font-sans);
+    text-transform: uppercase;
+    color: #444 !important;
+    border-bottom: 1.5px solid #000 !important;
+    padding-bottom: 4px;
+    font-weight: 700;
+  }
+
+  .print-running-footer {
+    display: block !important;
+    position: fixed;
+    bottom: -0.8in;
+    left: 0;
+    right: 0;
+    font-size: 8px;
+    font-family: var(--font-sans);
+    color: #444 !important;
+    border-top: 1.5px solid #000 !important;
+    padding-top: 4px;
+    text-align: center;
+    font-weight: 600;
+  }
+
+  /* Double underlines for financial balances */
+  .border-double-accounting {
+    border-bottom: 4px double #000 !important;
   }
 
   /* Keep table text crisp and clear */

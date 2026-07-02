@@ -20,6 +20,7 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({
   const [invCost, setInvCost] = useState('');
   const [invPrice, setInvPrice] = useState('');
   const [invReorder, setInvReorder] = useState('');
+  const [invItemType, setInvItemType] = useState<'Goods' | 'Services'>('Goods');
   
   const [manualInventory, setManualInventory] = useState<any[]>([]);
 
@@ -85,10 +86,11 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({
   const handleSaveItem = () => {
     const itemDesc = invItem.trim();
     const sku = invSku.trim() || itemDesc.toUpperCase().replace(/[^A-Z0-9]/g, '-').slice(0, 12);
-    const qty = parseNum(invQty);
+    // Services do not have physical stock qty or reorder thresholds
+    const qty = invItemType === 'Services' ? 0 : parseNum(invQty);
     const cost = parseNum(invCost);
     const price = parseNum(invPrice);
-    const reorder = parseNum(invReorder);
+    const reorder = invItemType === 'Services' ? 0 : parseNum(invReorder);
 
     if (!itemDesc) {
       showToast('Please enter the Item Description / Service Name.', 'error');
@@ -99,18 +101,19 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({
       id: Date.now(),
       sku,
       item: itemDesc,
-      category: invCategory.trim() || 'General Inventory',
+      category: invCategory.trim() || (invItemType === 'Services' ? 'Services' : 'General Inventory'),
       qty,
       cost,
       price,
       reorder,
+      itemType: invItemType,
       source: 'Manual'
     };
 
     const nextList = [newItem, ...manualInventory];
     setManualInventory(nextList);
     localStorage.setItem('stratify_inventory', JSON.stringify(nextList));
-    showToast(`Inventory line "${itemDesc}" saved.`, 'success');
+    showToast(`Catalog item "${itemDesc}" (${invItemType}) saved successfully.`, 'success');
 
     setInvSku('');
     setInvItem('');
@@ -119,6 +122,7 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({
     setInvCost('');
     setInvPrice('');
     setInvReorder('');
+    setInvItemType('Goods');
   };
 
   const lowStockCount = deduped.filter(r => parseNum(r.qty) <= parseNum(r.reorder || 0)).length;
@@ -190,7 +194,25 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({
 
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm space-y-4">
         <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">Add Item / Service</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-left">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-left">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Item Type</label>
+            <select
+              value={invItemType}
+              onChange={(e) => {
+                const val = e.target.value as 'Goods' | 'Services';
+                setInvItemType(val);
+                if (val === 'Services') {
+                  setInvQty('0');
+                  setInvReorder('0');
+                }
+              }}
+              className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-blue-400 font-bold"
+            >
+              <option value="Goods">Goods (Stock / Inventory)</option>
+              <option value="Services">Services (Non-Stock / Labor)</option>
+            </select>
+          </div>
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">SKU Code</label>
             <input 
@@ -224,11 +246,12 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Stock Qty</label>
             <input 
-              type="number" 
-              placeholder="0" 
-              value={invQty}
+              type="text" 
+              disabled={invItemType === 'Services'}
+              placeholder={invItemType === 'Services' ? 'N/A' : '0'}
+              value={invItemType === 'Services' ? 'N/A' : invQty}
               onChange={(e) => setInvQty(e.target.value)}
-              className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
+              className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none disabled:opacity-50"
             />
           </div>
         </div>
@@ -256,11 +279,12 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Reorder Level (Min)</label>
             <input 
-              type="number" 
-              placeholder="0" 
-              value={invReorder}
+              type="text" 
+              disabled={invItemType === 'Services'}
+              placeholder={invItemType === 'Services' ? 'N/A' : '0'}
+              value={invItemType === 'Services' ? 'N/A' : invReorder}
               onChange={(e) => setInvReorder(e.target.value)}
-              className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
+              className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none disabled:opacity-50"
             />
           </div>
         </div>
@@ -286,6 +310,7 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({
               <tr className="bg-zinc-50 dark:bg-zinc-950/60 border-b border-zinc-100 dark:border-zinc-800 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
                 <th className="px-5 py-3">SKU Code</th>
                 <th className="px-5 py-3">Item Name / Service</th>
+                <th className="px-5 py-3">Type</th>
                 <th className="px-5 py-3">Category</th>
                 <th className="px-5 py-3 text-right">Unit Cost</th>
                 <th className="px-5 py-3 text-right">Selling Price</th>
@@ -301,24 +326,40 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({
                 const reorder = r2(parseNum(r.reorder || 0));
                 const cost = r2(parseNum(r.cost));
                 const price = r2(parseNum(r.price));
-                const isLow = qty <= reorder;
+                const isService = r.itemType === 'Services' || r.category?.toLowerCase() === 'services' || r.item?.toLowerCase().includes('service');
+                const isLow = !isService && qty <= reorder;
 
                 return (
                   <tr key={idx} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/10 transition-colors">
                     <td className="px-5 py-3.5 font-bold font-mono text-zinc-800 dark:text-zinc-200">{r.sku}</td>
                     <td className="px-5 py-3.5 font-bold text-zinc-800 dark:text-zinc-200">{r.item}</td>
+                    <td className="px-5 py-3.5">
+                      <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                        isService
+                          ? 'bg-purple-50 border-purple-100 text-purple-700 dark:bg-purple-950/30 dark:border-purple-900/30 dark:text-purple-400'
+                          : 'bg-zinc-50 border-zinc-200 text-zinc-700 dark:bg-zinc-950/30 dark:border-zinc-850/30 dark:text-zinc-400'
+                      }`}>
+                        {isService ? 'Service' : 'Goods'}
+                      </span>
+                    </td>
                     <td className="px-5 py-3.5 text-zinc-500 font-semibold">{r.category}</td>
                     <td className="px-5 py-3.5 text-right font-mono font-medium text-zinc-500 dark:text-zinc-400">{displayMoney(cost)}</td>
                     <td className="px-5 py-3.5 text-right font-mono font-bold text-zinc-800 dark:text-zinc-200">{displayMoney(price)}</td>
-                    <td className="px-5 py-3.5 text-right font-mono font-bold text-zinc-800 dark:text-zinc-200">{qty}</td>
-                    <td className="px-5 py-3.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">{displayMoney(r2(qty * cost))}</td>
+                    <td className="px-5 py-3.5 text-right font-mono font-bold text-zinc-800 dark:text-zinc-200">
+                      {isService ? <span className="text-zinc-400">N/A</span> : qty}
+                    </td>
+                    <td className="px-5 py-3.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                      {isService ? <span className="text-zinc-400">—</span> : displayMoney(r2(qty * cost))}
+                    </td>
                     <td className="px-5 py-3.5">
                       <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
-                        isLow 
-                          ? 'bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-950/30 dark:border-blue-900/30 dark:text-blue-400' 
-                          : 'bg-emerald-50 border-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-900/30 dark:text-emerald-400'
+                        isService
+                          ? 'bg-zinc-50 border-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-400'
+                          : isLow 
+                            ? 'bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-950/30 dark:border-blue-900/30 dark:text-blue-400' 
+                            : 'bg-emerald-50 border-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-900/30 dark:text-emerald-400'
                       }`}>
-                        {isLow ? 'Low Stock' : 'Good'}
+                        {isService ? 'Non-Stock' : isLow ? 'Low Stock' : 'Good'}
                       </span>
                     </td>
                     <td className="px-5 py-3.5"><span className="badge-soft">{r.source || 'Manual'}</span></td>
@@ -326,7 +367,7 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({
                 );
               }) : (
                 <tr>
-                  <td colSpan={9} className="px-5 py-8 text-center text-zinc-400 dark:text-zinc-500 italic">No inventory registered. Add standard service items above to populate the selection list.</td>
+                  <td colSpan={10} className="px-5 py-8 text-center text-zinc-400 dark:text-zinc-500 italic">No inventory registered. Add standard service items above to populate the selection list.</td>
                 </tr>
               )}
             </tbody>

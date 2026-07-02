@@ -18,15 +18,24 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
   const [discountPercent, setDiscountPercent] = useState('0');
   const [vatMode, setVatMode] = useState<'Tax Inclusive' | 'Tax Exclusive' | 'Exempt'>('Tax Inclusive');
 
+  const [companyConfig, setCompanyConfig] = useState<any>({
+    companyName: 'STRATIFY (System+Strategy) SALES ERP PLATFORM',
+    tin: '009-887-112-000',
+    address: 'Ortigas Center, Pasig City, Metro Manila',
+    registeredVat: true,
+    logoUrl: 'https://i.postimg.cc/5yGwSWWR/1782659487700.png'
+  });
+
   // Quotation line item form fields
   const [lineDesc, setLineDesc] = useState('');
   const [lineQty, setLineQty] = useState('1');
   const [linePrice, setLinePrice] = useState('');
   const [lineTaxClass, setLineTaxClass] = useState<'Vatable' | 'Exempt' | 'Zero-Rated'>('Vatable');
+  const [lineItemType, setLineItemType] = useState<'Goods' | 'Services'>('Goods');
 
   const [lines, setLines] = useState<any[]>([
-    { id: 1, desc: 'Enterprise Accounting Portal License', qty: 1, price: 45000, taxClass: 'Vatable' },
-    { id: 2, desc: 'Premium Cloud Storage (1TB, 12 Months)', qty: 1, price: 12000, taxClass: 'Vatable' }
+    { id: 1, desc: 'Enterprise Accounting Portal License', qty: 1, price: 45000, taxClass: 'Vatable', itemType: 'Services' },
+    { id: 2, desc: 'Premium Cloud Storage (1TB, 12 Months)', qty: 1, price: 12000, taxClass: 'Vatable', itemType: 'Goods' }
   ]);
 
   const [draftQuotes, setDraftQuotes] = useState<any[]>([]);
@@ -42,6 +51,17 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
         ];
         setDraftQuotes(defaults);
         localStorage.setItem('stratify_draft_quotations', JSON.stringify(defaults));
+      }
+    } catch (e) {}
+
+    try {
+      const companyStored = localStorage.getItem('stratify_company_config');
+      if (companyStored) {
+        const parsed = JSON.parse(companyStored);
+        if (parsed.logoUrl === '/logo.png' || !parsed.logoUrl) {
+          parsed.logoUrl = 'https://i.postimg.cc/5yGwSWWR/1782659487700.png';
+        }
+        setCompanyConfig(parsed);
       }
     } catch (e) {}
   }, []);
@@ -61,7 +81,8 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
       desc,
       qty,
       price,
-      taxClass: lineTaxClass
+      taxClass: lineTaxClass,
+      itemType: lineItemType
     };
 
     setLines([...lines, newLine]);
@@ -69,6 +90,7 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
     setLineQty('1');
     setLinePrice('');
     setLineTaxClass('Vatable');
+    setLineItemType('Goods');
     showToast('Item row added to quote sheet.', 'success');
   };
 
@@ -268,11 +290,22 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
                 <select 
                   value={lineTaxClass}
                   onChange={(e: any) => setLineTaxClass(e.target.value)}
-                  className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
+                  className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none font-medium"
                 >
                   <option value="Vatable">VAT (12%)</option>
                   <option value="Exempt">VAT Exempt</option>
                   <option value="Zero-Rated">Zero-Rated (0%)</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">Item Nature</label>
+                <select 
+                  value={lineItemType}
+                  onChange={(e: any) => setLineItemType(e.target.value)}
+                  className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none font-medium"
+                >
+                  <option value="Goods">Goods / Physical Inventory</option>
+                  <option value="Services">Services / Labor / Professional</option>
                 </select>
               </div>
             </div>
@@ -342,15 +375,29 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
 
       {/* PRINT-OPTIMIZED SHEETS AREA */}
       <motion.div variants={itemVariants} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-xl overflow-hidden fs-sheet-print p-8 sm:p-12 text-left text-zinc-800 dark:text-zinc-200">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 border-b border-zinc-200 dark:border-zinc-800 pb-8">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-white uppercase">BUSINESS PROPOSAL</h1>
-            <p className="text-xs text-zinc-500 uppercase tracking-wider font-bold">Official Price Quotation</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 border-b border-zinc-200 dark:border-zinc-800 pb-8">
+          <div className="flex items-center gap-4">
+            {companyConfig.logoUrl && (
+              <img 
+                src={companyConfig.logoUrl} 
+                alt="Company Logo" 
+                className="w-16 h-16 rounded-2xl object-cover bg-white p-1 border border-zinc-200 dark:border-zinc-800 shadow-sm"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  // Fallback if logo fails to load
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+            )}
+            <div className="space-y-1">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-white uppercase">BUSINESS PROPOSAL</h1>
+              <p className="text-xs text-zinc-500 uppercase tracking-wider font-bold">Official Price Quotation</p>
+            </div>
           </div>
-          <div className="text-right space-y-1 text-xs">
-            <div className="font-bold text-zinc-900 dark:text-white">STRATIFY (System+Strategy) SALES ERP PLATFORM</div>
-            <div className="text-zinc-500">Ortigas Center, Pasig City, Metro Manila</div>
-            <div className="text-zinc-500">TIN: 009-887-112-000 • VAT Registered</div>
+          <div className="text-left sm:text-right space-y-1 text-xs">
+            <div className="font-bold text-zinc-900 dark:text-white uppercase">{companyConfig.companyName || 'STRATIFY (System+Strategy) SALES ERP PLATFORM'}</div>
+            <div className="text-zinc-500">{companyConfig.address || 'Ortigas Center, Pasig City, Metro Manila'}</div>
+            <div className="text-zinc-500">TIN: {companyConfig.tin || '009-887-112-000'} {companyConfig.registeredVat ? '• VAT Registered' : ''}</div>
           </div>
         </div>
 
@@ -396,7 +443,17 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
                   <td className="px-4 py-3.5 font-bold text-zinc-800 dark:text-zinc-200">
                     <div className="flex flex-col">
                       <span>{l.desc}</span>
-                      <span className="text-[9px] text-zinc-400 font-medium uppercase tracking-wider mt-0.5">{l.taxClass} classification</span>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[9px] text-zinc-400 font-medium uppercase tracking-wider">{l.taxClass} classification</span>
+                        <span className="text-[9px] text-zinc-300">•</span>
+                        <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${
+                          l.itemType === 'Services'
+                            ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/20 dark:text-purple-400 border border-purple-100 dark:border-purple-900/20 font-bold'
+                            : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 font-bold'
+                        }`}>
+                          {l.itemType || 'Goods'}
+                        </span>
+                      </div>
                     </div>
                   </td>
                   <td className="px-4 py-3.5 text-center font-bold">{l.qty}</td>

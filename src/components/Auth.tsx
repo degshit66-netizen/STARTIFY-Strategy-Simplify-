@@ -23,6 +23,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
   const [error, setError] = useState('');
   const [imageError, setImageError] = useState(false);
   const [isGoogleReg, setIsGoogleReg] = useState(false);
+  const [userLimit, setUserLimit] = useState(1);
 
   const handleGoogleAuth = async () => {
     try {
@@ -170,6 +171,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
       const trialEndsAt = new Date();
       trialEndsAt.setDate(trialEndsAt.getDate() + 7); // 7 days trial
       
+      const calculatedPrice = 1500 + (userLimit > 1 ? (userLimit - 1) * 500 : 0);
       const newTenant: Tenant = {
         id: tenantId,
         name: companyName,
@@ -179,7 +181,9 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
         subscriptionStatus: 'trial',
         trialEndsAt: trialEndsAt.toISOString(),
         createdAt: new Date().toISOString(),
-        isOnline: true
+        isOnline: true,
+        userLimit,
+        pricePaid: calculatedPrice
       };
 
       const newUser: User = {
@@ -293,6 +297,56 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                       className="w-full pl-10 pr-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 text-sm text-zinc-900 dark:text-zinc-100"
                       placeholder="000-000-000-00000"
                     />
+                  </div>
+                </div>
+
+                {/* USER COUNT & SUBSCRIPTION CALCULATOR */}
+                <div className="bg-zinc-100/50 dark:bg-zinc-800/40 p-4.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="block text-xs font-bold text-zinc-800 dark:text-zinc-200">Registered Users</span>
+                      <span className="block text-[10px] text-zinc-400">Add-on seats are ₱500/mo each</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setUserLimit(prev => Math.max(1, prev - 1))}
+                        className="w-8 h-8 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center font-bold text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min="1"
+                        value={userLimit}
+                        onChange={e => setUserLimit(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-12 text-center text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg py-1.5 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setUserLimit(prev => prev + 1)}
+                        className="w-8 h-8 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center font-bold text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="pt-2.5 border-t border-dashed border-zinc-200 dark:border-zinc-700 text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
+                    <div className="flex justify-between">
+                      <span>1 Client Base License:</span>
+                      <span className="font-semibold">₱1,500</span>
+                    </div>
+                    {userLimit > 1 && (
+                      <div className="flex justify-between">
+                        <span>Add-on Users ({userLimit - 1} × ₱500):</span>
+                        <span className="font-semibold text-zinc-700 dark:text-zinc-300">₱{(userLimit - 1) * 500}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold text-sm text-blue-600 dark:text-blue-400 pt-1.5 border-t border-zinc-200 dark:border-zinc-800">
+                      <span>Total Price / Month:</span>
+                      <span>₱{(1500 + (userLimit > 1 ? (userLimit - 1) * 500 : 0)).toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
               </>

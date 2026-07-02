@@ -127,7 +127,8 @@ export const FSModule: React.FC<FSModuleProps> = ({
 
     const strictGross = r2(parseNum(row.gross));
     const strictEwt = r2(parseNum(row.ewt));
-    const strictCash = r2(parseNum(row.cash !== undefined && row.cash !== null && row.cash !== '' ? row.cash : (strictGross - strictEwt)));
+    const rowArAp = r2(parseNum(row.arAp));
+    const strictCash = r2(strictGross - strictEwt - rowArAp);
     const strictNet = (row.taxType === 'Exempt' || row.taxType === 'ZeroRated') ? strictGross : r2(parseNum(row.net) || (strictGross - parseNum(row.vat)));
     const strictVat = (row.taxType === 'Exempt' || row.taxType === 'ZeroRated') ? 0 : r2(parseNum(row.vat));
 
@@ -155,6 +156,7 @@ export const FSModule: React.FC<FSModuleProps> = ({
     else if (row.type === 'Sales') {
       postEntry('Cash in Bank / on Hand', strictCash, true);
       if (strictEwt > 0) postEntry('Creditable Withholding Tax (CWT)', strictEwt, true);
+      if (rowArAp > 0) postEntry('Accounts Receivable', rowArAp, true);
       if (strictVat > 0) postEntry('Output VAT Payable', strictVat, false);
       postEntry(accName, strictNet, false);
 
@@ -175,6 +177,7 @@ export const FSModule: React.FC<FSModuleProps> = ({
       if (strictVat > 0) postEntry('Input VAT', strictVat, true);
       postEntry('Cash in Bank / on Hand', strictCash, false);
       if (strictEwt > 0) postEntry('EWT Payable', strictEwt, false);
+      if (rowArAp > 0) postEntry('Accounts Payable', rowArAp, false);
 
       if (isPast) {
         begCashBalance -= strictCash;
@@ -294,7 +297,15 @@ export const FSModule: React.FC<FSModuleProps> = ({
       </div>
 
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 sm:p-8 space-y-10 shadow-sm max-w-4xl mx-auto font-sans" id="fsPrintContainer">
-        
+        {/* RUNNING HEADER & FOOTER FOR LOOSE LEAF PRINTING */}
+        <div className="print-running-header">
+          <span>{companyName} — Loose-Leaf Books of Accounts</span>
+          <span>Taxable Year: {yearFilter} • {periodText}</span>
+        </div>
+        <div className="print-running-footer">
+          <span>STRATIFY SYSTEM DEVELOPMENT — Approved for Loose-Leaf BIR Journal Binding</span>
+        </div>
+
         {/* INDEPENDENT AUDITOR'S REPORT (PAGE 1) */}
         <div className="space-y-6 fs-sheet-print pb-10 border-b-2 border-zinc-900 text-left">
           <div className="text-center pb-6 border-b border-zinc-200 dark:border-zinc-800">

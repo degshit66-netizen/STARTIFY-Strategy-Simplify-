@@ -40,10 +40,41 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
     setTenants(tenants.map(t => t.id === tenantId ? { ...t, subscriptionStatus: status } : t));
   };
 
+  const handleApproveRequest = (tenant: Tenant) => {
+    const plan = tenant.subscriptionRequestPlan || 'monthly';
+    const limit = tenant.subscriptionRequestUserLimit || 1;
+    const isAnnual = plan === 'annual';
+    const price = isAnnual ? (1500 + limit * 500) * 12 : (1500 + limit * 500);
+    const newExpires = isAnnual ? addMonths(new Date(), 12) : addMonths(new Date(), 1);
+
+    setTenants(tenants.map(t => t.id === tenant.id ? {
+      ...t,
+      subscriptionStatus: 'active',
+      subscriptionType: plan,
+      userLimit: limit,
+      pricePaid: price,
+      expiresAt: newExpires.toISOString(),
+      subscriptionRequestStatus: 'approved'
+    } : t));
+  };
+
+  const handleRejectRequest = (tenantId: string) => {
+    setTenants(tenants.map(t => t.id === tenantId ? {
+      ...t,
+      subscriptionRequestStatus: 'rejected'
+    } : t));
+  };
+
   const activeTenants = tenants.filter(t => t.subscriptionStatus === 'active' || t.subscriptionStatus === 'trial');
   
-  // Calculate estimated MRR (assuming average of 2500 per active tenant)
-  const mrr = activeTenants.length * 2500;
+  // Calculate estimated MRR dynamically based on actual premiums paid by tenants
+  const mrr = tenants
+    .filter(t => t.subscriptionStatus === 'active')
+    .reduce((sum, t) => {
+      const isAnnual = t.subscriptionType === 'annual';
+      const price = t.pricePaid || 0;
+      return sum + (isAnnual ? price / 12 : price);
+    }, 0);
 
   const filteredTenants = useMemo(() => {
     return tenants.filter(t => {
@@ -260,9 +291,38 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
                              <div className={`relative w-3.5 h-3.5 border-2 border-white dark:border-zinc-900 rounded-full ${tenant.isOnline ? 'bg-emerald-500' : 'bg-zinc-400'}`}></div>
                            </div>
                         </div>
-                        <div>
+                        <div className="flex flex-col">
                           <span className="font-bold text-zinc-900 dark:text-zinc-100 block">{tenant.name}</span>
                           <span className="text-xs text-zinc-500 font-medium">Owner: {owner?.email} {owner?.authProvider === 'google' && '(Google)'}</span>
+                          
+                          {tenant.subscriptionRequestStatus === 'pending' && (
+                            <div className="mt-2 bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-400 text-[10px] px-2.5 py-2 rounded-xl flex flex-col gap-1 max-w-xs shadow-sm">
+                              <span className="font-bold uppercase tracking-wider flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                Awaiting Upgrade Approval
+                              </span>
+                              <span>Plan: <strong className="capitalize">{tenant.subscriptionRequestPlan}</strong> with <strong>{tenant.subscriptionRequestUserLimit} seat(s)</strong> capacity.</span>
+                              <span>Price: <strong className="font-mono">₱{
+                                ((tenant.subscriptionRequestPlan === 'annual' ? 12 : 1) * (1500 + (tenant.subscriptionRequestUserLimit || 1) * 500)).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                              }</strong></span>
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveRequest(tenant)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider transition-colors shadow-sm"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRejectRequest(tenant.id)}
+                                  className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider transition-colors shadow-sm"
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -278,15 +338,20 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
                       </span>
                     </td>
                     <td className="p-4">
-                      <div className="font-medium text-zinc-900 dark:text-zinc-100">Pro Tier</div>
-                      <div className="text-xs font-mono text-zinc-500">₱2,500.00/mo</div>
+                      <div className="font-medium text-zinc-900 dark:text-zinc-100">
+                        {tenant.subscriptionStatus === 'trial' ? 'Free Trial' : `Premium (${tenant.subscriptionType === 'annual' ? 'Annual' : 'Monthly'})`}
+                      </div>
+                      <div className="text-xs font-mono text-zinc-500">
+                        ₱{tenant.subscriptionStatus === 'trial' ? '0.00' : `${(tenant.pricePaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}{tenant.subscriptionStatus === 'trial' ? '' : tenant.subscriptionType === 'annual' ? ' / yr' : ' / mo'}
+                      </div>
                     </td>
                     <td className="p-4">
-                      <div className="flex items-center gap-1.5">
-                        <Users className="w-4 h-4 text-zinc-400" />
-                        <span className="font-semibold text-zinc-700 dark:text-zinc-300">
-                          {users.filter(u => u.tenantId === tenant.id).length}
-                        </span>
+                      <div className="flex flex-col text-xs">
+                        <div className="flex items-center gap-1.5 font-semibold text-zinc-700 dark:text-zinc-300">
+                          <Users className="w-3.5 h-3.5 text-zinc-400" />
+                          <span>{users.filter(u => u.tenantId === tenant.id).length} / {tenant.subscriptionStatus === 'trial' ? '0' : (tenant.userLimit || 0)}</span>
+                        </div>
+                        <span className="text-[10px] text-zinc-400">seats allocated</span>
                       </div>
                     </td>
                     <td className="p-4">

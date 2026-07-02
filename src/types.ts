@@ -9,6 +9,12 @@ export interface Tenant {
   expiresAt?: string;
   createdAt: string;
   isOnline: boolean;
+  userLimit?: number;
+  pricePaid?: number;
+  subscriptionType?: 'monthly' | 'annual';
+  subscriptionRequestStatus?: 'none' | 'pending' | 'approved' | 'rejected';
+  subscriptionRequestPlan?: 'monthly' | 'annual';
+  subscriptionRequestUserLimit?: number;
 }
 
 export interface User {
@@ -51,6 +57,7 @@ export interface LedgerEntry {
   createdAt: string;
   modifiedBy?: string;
   modifiedAt?: string;
+  itemType?: 'Goods' | 'Services';
 }
 
 export interface ContactMaster {

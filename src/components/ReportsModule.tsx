@@ -29,6 +29,21 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
     .filter(r => r.type === 'Sales' && r.taxType === 'Vatable')
     .reduce((sum, r) => sum + r2(parseNum(r.vat)), 0);
 
+  // Goods vs Services breakdowns
+  const vatableSalesGoods = activeRows
+    .filter(r => r.type === 'Sales' && r.taxType === 'Vatable' && (r.itemType === 'Goods' || !r.itemType))
+    .reduce((sum, r) => sum + r2(parseNum(r.taxable)), 0);
+  const vatableSalesServices = activeRows
+    .filter(r => r.type === 'Sales' && r.taxType === 'Vatable' && r.itemType === 'Services')
+    .reduce((sum, r) => sum + r2(parseNum(r.taxable)), 0);
+
+  const vatSalesOutputGoods = activeRows
+    .filter(r => r.type === 'Sales' && r.taxType === 'Vatable' && (r.itemType === 'Goods' || !r.itemType))
+    .reduce((sum, r) => sum + r2(parseNum(r.vat)), 0);
+  const vatSalesOutputServices = activeRows
+    .filter(r => r.type === 'Sales' && r.taxType === 'Vatable' && r.itemType === 'Services')
+    .reduce((sum, r) => sum + r2(parseNum(r.vat)), 0);
+
   const exemptSales = activeRows
     .filter(r => r.type === 'Sales' && r.taxType === 'Exempt')
     .reduce((sum, r) => sum + r2(parseNum(r.gross)), 0);
@@ -42,6 +57,20 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
     .reduce((sum, r) => sum + r2(parseNum(r.taxable)), 0);
   const vatPurchasesInput = activeRows
     .filter(r => r.type === 'Expense' && r.taxType === 'Vatable')
+    .reduce((sum, r) => sum + r2(parseNum(r.vat)), 0);
+
+  const vatablePurchasesGoods = activeRows
+    .filter(r => r.type === 'Expense' && r.taxType === 'Vatable' && (r.itemType === 'Goods' || !r.itemType))
+    .reduce((sum, r) => sum + r2(parseNum(r.taxable)), 0);
+  const vatablePurchasesServices = activeRows
+    .filter(r => r.type === 'Expense' && r.taxType === 'Vatable' && r.itemType === 'Services')
+    .reduce((sum, r) => sum + r2(parseNum(r.taxable)), 0);
+
+  const vatPurchasesInputGoods = activeRows
+    .filter(r => r.type === 'Expense' && r.taxType === 'Vatable' && (r.itemType === 'Goods' || !r.itemType))
+    .reduce((sum, r) => sum + r2(parseNum(r.vat)), 0);
+  const vatPurchasesInputServices = activeRows
+    .filter(r => r.type === 'Expense' && r.taxType === 'Vatable' && r.itemType === 'Services')
     .reduce((sum, r) => sum + r2(parseNum(r.vat)), 0);
 
   const netVatPayable = r2(vatSalesOutput - vatPurchasesInput);
@@ -203,33 +232,53 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-left">
             <motion.div variants={itemVariants} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-2xl shadow-sm space-y-4">
-              <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">BIR Form 2550Q VAT Summary</h3>
-              <div className="space-y-3 text-xs text-zinc-500">
-                <div className="flex justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2.5">
-                  <span>Vatable Sales (Net of VAT):</span>
-                  <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-300">₱ {formatCurrency(vatableSales)}</span>
+              <div className="flex justify-between items-center border-b border-zinc-100 dark:border-zinc-800 pb-2">
+                <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">BIR Form 2550Q VAT Summary</h3>
+                <span className="text-[10px] bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 font-extrabold px-2 py-0.5 rounded uppercase">Goods & Services Split</span>
+              </div>
+              <div className="space-y-2.5 text-xs text-zinc-500">
+                <div className="flex justify-between">
+                  <span>Vatable Sales - Goods (Net):</span>
+                  <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-300">₱ {formatCurrency(vatableSalesGoods)}</span>
                 </div>
-                <div className="flex justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2.5">
-                  <span>Output VAT Due (12%):</span>
-                  <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-300">₱ {formatCurrency(vatSalesOutput)}</span>
+                <div className="flex justify-between border-b border-zinc-100 dark:border-zinc-800/50 pb-1.5 pl-3 text-[11px] italic">
+                  <span>Output VAT - Goods (12%):</span>
+                  <span className="font-mono text-zinc-600 dark:text-zinc-400">₱ {formatCurrency(vatSalesOutputGoods)}</span>
                 </div>
-                <div className="flex justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2.5">
-                  <span>Exempt Sales:</span>
-                  <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-300">₱ {formatCurrency(exemptSales)}</span>
+
+                <div className="flex justify-between">
+                  <span>Vatable Sales - Services (Net):</span>
+                  <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-300">₱ {formatCurrency(vatableSalesServices)}</span>
                 </div>
-                <div className="flex justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2.5">
-                  <span>Zero-Rated Sales:</span>
-                  <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-300">₱ {formatCurrency(zeroRatedSales)}</span>
+                <div className="flex justify-between border-b border-zinc-100 dark:border-zinc-800 pb-1.5 pl-3 text-[11px] italic">
+                  <span>Output VAT - Services (12%):</span>
+                  <span className="font-mono text-zinc-600 dark:text-zinc-400">₱ {formatCurrency(vatSalesOutputServices)}</span>
                 </div>
-                <div className="flex justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2.5">
-                  <span>Vatable Purchases (Net of VAT):</span>
-                  <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-300">₱ {formatCurrency(vatablePurchases)}</span>
+
+                <div className="flex justify-between border-b border-zinc-100 dark:border-zinc-800/60 pb-1.5">
+                  <span>Exempt / Zero-Rated Sales:</span>
+                  <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-300">₱ {formatCurrency(exemptSales + zeroRatedSales)}</span>
                 </div>
-                <div className="flex justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2.5">
-                  <span>Input VAT Credit (12%):</span>
-                  <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-300">₱ {formatCurrency(vatPurchasesInput)}</span>
+
+                <div className="flex justify-between">
+                  <span>Vatable Purchases - Goods (Net):</span>
+                  <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-300">₱ {formatCurrency(vatablePurchasesGoods)}</span>
                 </div>
-                <div className="flex justify-between text-sm font-extrabold text-zinc-900 dark:text-white pt-2">
+                <div className="flex justify-between border-b border-zinc-100 dark:border-zinc-800/50 pb-1.5 pl-3 text-[11px] italic">
+                  <span>Input VAT - Goods (12%):</span>
+                  <span className="font-mono text-zinc-600 dark:text-zinc-400">₱ {formatCurrency(vatPurchasesInputGoods)}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span>Vatable Purchases - Services (Net):</span>
+                  <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-300">₱ {formatCurrency(vatablePurchasesServices)}</span>
+                </div>
+                <div className="flex justify-between border-b border-zinc-100 dark:border-zinc-800 pb-1.5 pl-3 text-[11px] italic">
+                  <span>Input VAT - Services (12%):</span>
+                  <span className="font-mono text-zinc-600 dark:text-zinc-400">₱ {formatCurrency(vatPurchasesInputServices)}</span>
+                </div>
+
+                <div className="flex justify-between text-sm font-extrabold text-zinc-900 dark:text-white pt-2 border-t border-zinc-200 dark:border-zinc-800">
                   <span>Net Tax Payable / (Excess Credit):</span>
                   <span className="font-mono">₱ {formatCurrency(netVatPayable)}</span>
                 </div>
@@ -255,6 +304,122 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
               </div>
             </motion.div>
           </div>
+
+          {/* SLSP / Summary Lists Section */}
+          <motion.div variants={itemVariants} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden text-left">
+            <div className="border-b border-zinc-100 dark:border-zinc-800 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">BIR Summary Lists of Sales & Purchases (SLSP) / VAT Relief</h3>
+                <p className="text-xs text-zinc-500 mt-1">Mandatory quarterly electronic submission separating declarations of Gross Sales/Purchases for Goods vs. Services.</p>
+              </div>
+              <span className="text-xs bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-xl text-zinc-600 dark:text-zinc-400 font-mono font-bold">
+                Relief v1.4 Compliance
+              </span>
+            </div>
+            
+            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-6 border-b border-zinc-100 dark:border-zinc-800">
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-blue-500">Summary List of Sales (SLS)</h4>
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div className="bg-zinc-50 dark:bg-zinc-950/40 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                    <div className="text-zinc-400 font-bold uppercase text-[9px] tracking-wider">Gross Sales of Goods</div>
+                    <div className="text-sm font-extrabold font-mono text-zinc-800 dark:text-zinc-200 mt-1">
+                      ₱ {formatCurrency(activeRows.filter(r => r.type === 'Sales' && (r.itemType === 'Goods' || !r.itemType)).reduce((a, b) => a + parseNum(b.gross), 0))}
+                    </div>
+                  </div>
+                  <div className="bg-zinc-50 dark:bg-zinc-950/40 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                    <div className="text-zinc-400 font-bold uppercase text-[9px] tracking-wider">Gross Sales of Services</div>
+                    <div className="text-sm font-extrabold font-mono text-zinc-800 dark:text-zinc-200 mt-1">
+                      ₱ {formatCurrency(activeRows.filter(r => r.type === 'Sales' && r.itemType === 'Services').reduce((a, b) => a + parseNum(b.gross), 0))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-500">Summary List of Purchases (SLP)</h4>
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div className="bg-zinc-50 dark:bg-zinc-950/40 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                    <div className="text-zinc-400 font-bold uppercase text-[9px] tracking-wider">Gross Purchases of Goods</div>
+                    <div className="text-sm font-extrabold font-mono text-zinc-800 dark:text-zinc-200 mt-1">
+                      ₱ {formatCurrency(activeRows.filter(r => r.type === 'Expense' && (r.itemType === 'Goods' || !r.itemType)).reduce((a, b) => a + parseNum(b.gross), 0))}
+                    </div>
+                  </div>
+                  <div className="bg-zinc-50 dark:bg-zinc-950/40 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                    <div className="text-zinc-400 font-bold uppercase text-[9px] tracking-wider">Gross Purchases of Services</div>
+                    <div className="text-sm font-extrabold font-mono text-zinc-800 dark:text-zinc-200 mt-1">
+                      ₱ {formatCurrency(activeRows.filter(r => r.type === 'Expense' && r.itemType === 'Services').reduce((a, b) => a + parseNum(b.gross), 0))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[900px]">
+                <thead>
+                  <tr className="bg-zinc-50 dark:bg-zinc-950/60 border-b border-zinc-100 dark:border-zinc-800 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                    <th className="px-5 py-3">Date</th>
+                    <th className="px-5 py-3">Registered Name</th>
+                    <th className="px-5 py-3">TIN</th>
+                    <th className="px-5 py-3">Journal Type</th>
+                    <th className="px-5 py-3">Tax Type</th>
+                    <th className="px-5 py-3">Nature</th>
+                    <th className="px-5 py-3 text-right">Taxable Base</th>
+                    <th className="px-5 py-3 text-right">VAT (12%)</th>
+                    <th className="px-5 py-3 text-right">EWT / CWT</th>
+                    <th className="px-5 py-3 text-right">Gross Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 text-xs">
+                  {activeRows.length ? activeRows.map((r) => {
+                    const isExpense = r.type === 'Expense';
+                    const nature = r.itemType || 'Goods';
+                    const rateText = nature === 'Goods' ? '1%' : '2%';
+                    const ewtVal = r.ewt || 0;
+
+                    return (
+                      <tr key={r.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/10 transition-colors">
+                        <td className="px-5 py-3 text-zinc-500 font-mono">{r.date}</td>
+                        <td className="px-5 py-3 font-bold text-zinc-800 dark:text-zinc-200">{r.payor}</td>
+                        <td className="px-5 py-3 font-mono text-zinc-500">{r.tin || 'N/A'}</td>
+                        <td className="px-5 py-3">
+                          <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                            isExpense 
+                              ? 'bg-red-50 border-red-100 text-red-700 dark:bg-red-950/20 dark:border-red-900/20' 
+                              : 'bg-emerald-50 border-emerald-100 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-900/20'
+                          }`}>
+                            {isExpense ? 'Purchase' : 'Sales'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-zinc-600 font-semibold">{r.taxType}</td>
+                        <td className="px-5 py-3">
+                          <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                            nature === 'Services' 
+                              ? 'bg-purple-50 border-purple-100 text-purple-700 dark:bg-purple-950/20 dark:border-purple-900/20' 
+                              : 'bg-zinc-50 border-zinc-200 text-zinc-700 dark:bg-zinc-950/20 dark:border-zinc-800/20'
+                          }`}>
+                            {nature}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-right font-mono text-zinc-600 dark:text-zinc-400">{displayMoney(r.taxable)}</td>
+                        <td className="px-5 py-3 text-right font-mono text-zinc-600 dark:text-zinc-400">{displayMoney(r.vat)}</td>
+                        <td className="px-5 py-3 text-right font-mono text-blue-600 dark:text-blue-400 font-semibold" title={`${rateText} Withholding`}>
+                          {ewtVal > 0 ? displayMoney(ewtVal) : <span className="text-zinc-300">—</span>}
+                          {ewtVal > 0 && <span className="text-[9px] text-zinc-400 ml-1">({rateText})</span>}
+                        </td>
+                        <td className="px-5 py-3 text-right font-mono font-bold text-zinc-900 dark:text-white">{displayMoney(r.gross)}</td>
+                      </tr>
+                    );
+                  }) : (
+                    <tr>
+                      <td colSpan={10} className="px-5 py-8 text-center text-zinc-400 italic">No transactions recorded for this period.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
         </div>
       )}
 
