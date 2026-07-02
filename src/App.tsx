@@ -38,8 +38,8 @@ import {
   HardHat
 } from 'lucide-react';
 
-import { LedgerEntry, CompanyConfig } from './types';
-import { r2, parseNum } from './utils/helpers';
+import { LedgerEntry, CompanyConfig, User, Tenant, SchedulerTask } from './types';
+import { r2, parseNum, cleanDate } from './utils/helpers';
 
 // Subcomponents
 import { Dashboard } from './components/Dashboard';
@@ -67,8 +67,7 @@ import { SuperAdminDashboard } from './components/SuperAdminDashboard';
 import { FeatureTour } from './components/FeatureTour';
 import { SubscriptionPrompt } from './components/SubscriptionPrompt';
 import { useTrialMonitor } from './hooks/useTrialMonitor';
-import { User, Tenant } from './types';
-import { loadTenantsFromFirebase, loadUsersFromFirebase, syncTenantToFirebase, syncUserToFirebase } from './lib/db';
+import { loadTenantsFromFirebase, loadUsersFromFirebase, syncTenantToFirebase, syncUserToFirebase, loadStorageFromFirebase } from './lib/db';
 
 // Modals
 import { EntryModal } from './components/EntryModal';
@@ -146,7 +145,10 @@ export default function App() {
             setCurrentUser(u);
             if (tid) {
                const t = loadedTenants.find(x => x.id === tid);
-               if (t) setCurrentTenant(t);
+               if (t) {
+                  await loadStorageFromFirebase(tid);
+                  setCurrentTenant(t);
+               }
             }
          }
       }
@@ -207,9 +209,45 @@ export default function App() {
   const [activeVoucher, setActiveVoucher] = useState<LedgerEntry | null>(null);
   const [scanResult, setScanResult] = useState<{ payor: string, particulars: string, gross: string, accountCode: string, tin?: string } | null>(null);
   
+  // Period locks and task schedule states
+  const [lockedMonths, setLockedMonths] = useState<Record<string, boolean>>({});
+  const [lockedQuarters, setLockedQuarters] = useState<Record<string, boolean>>({});
+  const [tasks, setTasks] = useState<SchedulerTask[]>([]);
+
+  // Hydrate task schedule on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('stratify_tasks');
+      if (stored) {
+        setTasks(JSON.parse(stored));
+      } else {
+        const defaults: SchedulerTask[] = [
+          { id: 1, title: 'BIR 2550Q VAT Filing Deadline', dueDate: `${new Date().getFullYear()}-07-25`, module: 'Value-Added Tax', status: 'Open' },
+          { id: 2, title: 'Annual Income Tax 1702 Return Compilation', dueDate: `${new Date().getFullYear()}-04-15`, module: 'Income Tax', status: 'Done' },
+          { id: 3, title: 'Monthly SEC/BIR S.A.S. Submission', dueDate: `${new Date().getFullYear()}-07-10`, module: 'Financial Statements', status: 'In Progress' },
+          { id: 4, title: 'Submit Bound Loose-Leaf Books (Affidavit Annex C)', dueDate: `${new Date().getFullYear()}-01-30`, module: 'Loose Leaf Compliance', status: 'Open' }
+        ];
+        setTasks(defaults);
+        localStorage.setItem('stratify_tasks', JSON.stringify(defaults));
+      }
+    } catch (e) {}
+  }, []);
+
+  const handleUpdateLocks = (nextMonths: Record<string, boolean>, nextQuarters: Record<string, boolean>) => {
+    if (currentTenant) {
+      setLockedMonths(nextMonths);
+      setLockedQuarters(nextQuarters);
+      localStorage.setItem(`stratify_locked_months_${currentTenant.id}`, JSON.stringify(nextMonths));
+      localStorage.setItem(`stratify_locked_quarters_${currentTenant.id}`, JSON.stringify(nextQuarters));
+      showToast('Period lock settings saved successfully.', 'success');
+      logAuditTrail('SYSTEM', 'LOCKS', 'Updated period locks: ' + JSON.stringify({ months: nextMonths, quarters: nextQuarters }));
+    }
+  };
+  
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('stratify_theme') !== 'light';
   });
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -298,8 +336,18 @@ export default function App() {
           setLedger(defaultTx);
           localStorage.setItem(key, JSON.stringify(defaultTx));
         }
+
+        // Hydrate period locks
+        const lockMonthsKey = `stratify_locked_months_${currentTenant.id}`;
+        const lockQuartersKey = `stratify_locked_quarters_${currentTenant.id}`;
+        const storedMonths = localStorage.getItem(lockMonthsKey);
+        const storedQuarters = localStorage.getItem(lockQuartersKey);
+        setLockedMonths(storedMonths ? JSON.parse(storedMonths) : {});
+        setLockedQuarters(storedQuarters ? JSON.parse(storedQuarters) : {});
       } else {
         setLedger([]);
+        setLockedMonths({});
+        setLockedQuarters({});
       }
     } catch (e) {}
   }, [currentTenant]);
@@ -509,6 +557,89 @@ export default function App() {
     );
   }
 
+  // Build real-time alerts for Scheduler tasks and expiring subscription/trials
+  const notifications: { id: string; type: 'task' | 'subscription' | 'system'; title: string; desc: string; severity: 'high' | 'medium' | 'info' }[] = [];
+
+  tasks.forEach(t => {
+    if (t.status !== 'Done') {
+      const due = new Date(t.dueDate);
+      due.setHours(0, 0, 0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const diffTime = due.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays < 0) {
+        notifications.push({
+          id: `task-overdue-${t.id}`,
+          type: 'task',
+          title: `Overdue Event Alert`,
+          desc: `"${t.title}" was due on ${cleanDate(t.dueDate)} (${Math.abs(diffDays)} days overdue).`,
+          severity: 'high'
+        });
+      } else if (diffDays <= 5) {
+        notifications.push({
+          id: `task-soon-${t.id}`,
+          type: 'task',
+          title: `Deadline Approaching`,
+          desc: `"${t.title}" is due in ${diffDays} day${diffDays === 1 ? '' : 's'} (${cleanDate(t.dueDate)}).`,
+          severity: 'medium'
+        });
+      }
+    }
+  });
+
+  if (currentTenant) {
+    const trialEnd = new Date(currentTenant.trialEndDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    trialEnd.setHours(0, 0, 0, 0);
+    const diffTime = trialEnd.getTime() - today.getTime();
+    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (daysRemaining <= 10 && daysRemaining > 0) {
+      notifications.push({
+        id: `tenant-expire-${currentTenant.id}`,
+        type: 'subscription',
+        title: `Subscription Renewal Warning`,
+        desc: `Your subscription for organization "${currentTenant.name}" expires in ${daysRemaining} days (${cleanDate(currentTenant.trialEndDate)}).`,
+        severity: 'high'
+      });
+    } else if (daysRemaining <= 0) {
+      notifications.push({
+        id: `tenant-expired-${currentTenant.id}`,
+        type: 'subscription',
+        title: `Subscription Expired`,
+        desc: `Your organization's active subscription period has lapsed. Please renew billing to retain team access.`,
+        severity: 'high'
+      });
+    }
+  }
+
+  // Admin visibility for other expiring tenants
+  if (currentUser?.role === 'admin' && tenants.length > 0) {
+    tenants.forEach(tenant => {
+      if (tenant.id !== currentTenant?.id) {
+        const trialEnd = new Date(tenant.trialEndDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        trialEnd.setHours(0, 0, 0, 0);
+        const diffTime = trialEnd.getTime() - today.getTime();
+        const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (daysRemaining <= 10 && daysRemaining > 0) {
+          notifications.push({
+            id: `tenant-expire-admin-${tenant.id}`,
+            type: 'subscription',
+            title: `Admin Alert: Tenant Expiring`,
+            desc: `The subscriber group "${tenant.name}" is expiring in ${daysRemaining} days (${cleanDate(tenant.trialEndDate)}).`,
+            severity: 'medium'
+          });
+        }
+      }
+    });
+  }
+
   return (
     <div className="h-screen h-[100dvh] overflow-hidden bg-white dark:bg-zinc-950 flex flex-col font-sans transition-colors duration-300 overscroll-none">
       
@@ -551,6 +682,84 @@ export default function App() {
                 <option key={yr} value={yr}>{yr}</option>
               ))}
             </select>
+          </div>
+
+          <div className="relative">
+            <button 
+              onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+              className="p-2 text-blue-200 hover:text-white hover:bg-white/10 rounded-xl transition-all relative"
+              title="Notifications"
+            >
+              <Bell className="w-5 h-5" />
+              {notifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4.5 h-4.5 bg-rose-500 text-[8px] font-extrabold rounded-full flex items-center justify-center text-white ring-2 ring-blue-900 animate-pulse">
+                  {notifications.length}
+                </span>
+              )}
+            </button>
+            
+            {isNotificationOpen && (
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xl z-50 text-zinc-800 dark:text-zinc-100 overflow-hidden text-left">
+                <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 flex items-center justify-between">
+                  <h4 className="text-xs font-extrabold uppercase tracking-widest text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+                    <Bell className="w-4 h-4 text-amber-500" /> Notifications & Alerts
+                  </h4>
+                  {notifications.length > 0 && (
+                    <span className="text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400 px-2 py-0.5 rounded-full">
+                      {notifications.length} Active
+                    </span>
+                  )}
+                </div>
+                
+                <div className="max-h-72 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800/80">
+                  {notifications.length > 0 ? (
+                    notifications.map(notif => (
+                      <div key={notif.id} className="p-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/25 transition-colors space-y-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className={`text-[10px] font-extrabold uppercase tracking-wider ${
+                            notif.severity === 'high' 
+                              ? 'text-red-500' 
+                              : notif.severity === 'medium' 
+                                ? 'text-amber-500' 
+                                : 'text-blue-500'
+                          }`}>
+                            {notif.title}
+                          </span>
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1 ${
+                            notif.severity === 'high' 
+                              ? 'bg-red-500' 
+                              : notif.severity === 'medium' 
+                                ? 'bg-amber-500' 
+                                : 'bg-blue-500'
+                          }`}></span>
+                        </div>
+                        <p className="text-xs text-zinc-600 dark:text-zinc-300 font-medium leading-relaxed">
+                          {notif.desc}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-8 text-center text-zinc-400 dark:text-zinc-500 italic space-y-2">
+                      <div className="text-2xl">✨</div>
+                      <p className="text-xs font-semibold">All systems fully operational</p>
+                      <p className="text-[10px]">No pending task deadlines or expiring subscription warnings found.</p>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="p-2 border-t border-zinc-100 dark:border-zinc-800 text-center bg-zinc-50/50 dark:bg-zinc-950/20">
+                  <button 
+                    onClick={() => {
+                      setActiveTab('Scheduler');
+                      setIsNotificationOpen(false);
+                    }}
+                    className="text-[10px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 font-sans"
+                  >
+                    Open Business Scheduler →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <button 
@@ -651,6 +860,8 @@ export default function App() {
                   quarterFilter={quarterFilter}
                   companyName={companyConfig.companyName}
                   companyTin={companyConfig.tin}
+                  tasks={tasks}
+                  currentTenant={currentTenant}
                 />
               )}
               {activeTab === 'Ledger' && (
@@ -664,6 +875,11 @@ export default function App() {
                   quarterFilter={quarterFilter}
                   setMonthFilter={setMonthFilter}
                   setQuarterFilter={setQuarterFilter}
+                  lockedMonths={lockedMonths}
+                  lockedQuarters={lockedQuarters}
+                  onUpdateLocks={handleUpdateLocks}
+                  authorizedPIN={companyConfig.authorizedPIN}
+                  currentUserRole={currentUser?.role}
                 />
               )}
               {activeTab === 'Sales' && (
@@ -723,6 +939,11 @@ export default function App() {
               {activeTab === 'Scheduler' && (
                 <SchedulerModule 
                   showToast={showToast}
+                  tasks={tasks}
+                  setTasks={(nextTasks) => {
+                    setTasks(nextTasks);
+                    localStorage.setItem('stratify_tasks', JSON.stringify(nextTasks));
+                  }}
                 />
               )}
               {activeTab === 'Quotation' && (
@@ -804,6 +1025,13 @@ export default function App() {
         currentTenant={currentTenant}
         users={users}
         setUsers={setUsers}
+        ledger={ledger}
+        onImportLedger={(entries) => {
+          setLedger(entries);
+          if (currentTenant) {
+            localStorage.setItem(`stratify_general_ledger_${currentTenant.id}`, JSON.stringify(entries));
+          }
+        }}
         onUpdateTenant={(updated) => {
           setCurrentTenant(updated);
           setTenants(prev => prev.map(t => t.id === updated.id ? updated : t));

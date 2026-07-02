@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { TrendingDown, Percent, FileText, Camera, PlusCircle } from 'lucide-react';
+import { TrendingDown, Percent, FileText, Camera, PlusCircle, Printer } from 'lucide-react';
 import { 
   BarChart, 
   Bar, 
@@ -91,7 +91,15 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({
           <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white font-sans">🛒 Purchases</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">Track company disbursements, operating purchases, input taxes, and print disbursement vouchers.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto no-print">
+          <button 
+            onClick={() => window.print()}
+            className="flex items-center gap-2 text-xs bg-zinc-950 hover:bg-zinc-800 text-white font-bold px-4 py-2.5 rounded-xl transition-colors border border-zinc-800 shadow-sm focus:outline-none"
+            title="Print purchases expense report"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print Report</span>
+          </button>
           <button 
             onClick={onOpenScanExpense}
             className="flex items-center gap-2 text-xs bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm focus:outline-none border border-zinc-700"
@@ -109,7 +117,7 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
         <motion.div variants={itemVariants} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-2xl flex items-start justify-between shadow-sm">
           <div className="space-y-2">
             <span className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Purchases Gross</span>
@@ -155,7 +163,7 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({
         </motion.div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 no-print">
         <motion.div variants={itemVariants} className="lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-2xl shadow-sm min-h-[380px] flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider mb-4">Monthly Operating Disbursements</h3>

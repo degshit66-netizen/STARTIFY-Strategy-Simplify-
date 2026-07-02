@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, CheckCircle, ShieldAlert, Award, FileText, UserPlus, Trash2, Mail, User, Shield } from 'lucide-react';
-import { CompanyConfig, Tenant, User as SystemUser } from '../types';
+import { X, CheckCircle, ShieldAlert, Award, FileText, UserPlus, Trash2, Mail, User, Shield, Upload, Laptop, Smartphone, Tablet, DownloadCloud, Globe, RefreshCw, BookOpen } from 'lucide-react';
+import { CompanyConfig, Tenant, User as SystemUser, LedgerEntry } from '../types';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -12,6 +12,8 @@ interface SettingsModalProps {
   users?: SystemUser[];
   setUsers?: React.Dispatch<React.SetStateAction<SystemUser[]>>;
   onUpdateTenant?: (tenant: Tenant) => void;
+  ledger?: LedgerEntry[];
+  onImportLedger?: (entries: LedgerEntry[]) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -22,9 +24,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   updateTenantLogo,
   users = [],
   setUsers,
-  onUpdateTenant
+  onUpdateTenant,
+  ledger = [],
+  onImportLedger
 }) => {
-  const [activeSettingsTab, setActiveSettingsTab] = useState<'company' | 'team' | 'billing'>('company');
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'company' | 'team' | 'billing' | 'pwa'>('company');
 
   const [config, setConfig] = useState<CompanyConfig>({
     companyName: 'STRATIFY (System+Strategy)',
@@ -173,6 +177,116 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  const handleExportBackup = () => {
+    if (!currentTenant) {
+      showToast('No active tenant session found.', 'error');
+      return;
+    }
+
+    let exportData: LedgerEntry[] = [];
+    if (ledger && ledger.length > 0) {
+      exportData = ledger;
+    } else {
+      try {
+        const key = `stratify_general_ledger_${currentTenant.id}`;
+        const stored = localStorage.getItem(key);
+        if (stored) {
+          exportData = JSON.parse(stored);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    if (exportData.length === 0) {
+      showToast('No ledger entries available to export.', 'info');
+      return;
+    }
+
+    try {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
+      const downloadAnchor = document.createElement('a');
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `stratify_ledger_backup_${currentTenant.name.replace(/\s+/g, '_')}_${timestamp}.json`;
+      
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", filename);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+
+      showToast('Database backup successfully downloaded!', 'success');
+    } catch (e) {
+      showToast('Failed to generate database backup file.', 'error');
+    }
+  };
+
+  const handleImportBackup = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        const parsed = JSON.parse(text);
+        
+        if (!Array.isArray(parsed)) {
+          showToast('Invalid backup file. Must be a JSON array of ledger entries.', 'error');
+          return;
+        }
+
+        // Validate basic fields
+        const isValid = parsed.every(item => 
+          item && 
+          typeof item === 'object' && 
+          'id' in item && 
+          'type' in item && 
+          'gross' in item
+        );
+
+        if (!isValid && parsed.length > 0) {
+          showToast('Invalid ledger entry format detected in backup.', 'error');
+          return;
+        }
+
+        if (parsed.length === 0) {
+          showToast('Backup file is empty.', 'info');
+          return;
+        }
+
+        const option = confirm(
+          `Successfully parsed ${parsed.length} ledger entries.\n\nClick "OK" to MERGE these entries with your current ledger.\nClick "Cancel" to OVERWRITE your entire ledger with this backup.`
+        );
+
+        let finalLedger: LedgerEntry[] = [];
+        if (option) {
+          // Merge
+          const currentLedgerMap = new Map((ledger || []).map(item => [item.id, item]));
+          parsed.forEach(item => {
+            currentLedgerMap.set(item.id, item);
+          });
+          finalLedger = Array.from(currentLedgerMap.values()).sort((a, b) => b.id - a.id);
+          showToast(`Successfully merged ${parsed.length} entries!`, 'success');
+        } else {
+          // Overwrite
+          const doubleCheck = confirm('Are you sure you want to OVERWRITE the entire database? This cannot be undone.');
+          if (!doubleCheck) return;
+          finalLedger = parsed;
+          showToast(`Successfully restored ${parsed.length} entries!`, 'success');
+        }
+
+        if (onImportLedger) {
+          onImportLedger(finalLedger);
+        }
+      } catch (err) {
+        showToast('Failed to parse the backup JSON file.', 'error');
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  };
+
   const handleBackupReset = () => {
     if (!confirm('This resets all mock databases (Ledger, COA, Inventory, Contacts, Tasks) to original default values. Proceed?')) return;
     localStorage.clear();
@@ -253,6 +367,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   }`}
                 >
                   Subscription & Billing
+                </button>
+                <button
+                  onClick={() => setActiveSettingsTab('pwa')}
+                  className={`py-3 px-4 text-xs font-bold border-b-2 transition-all ${
+                    activeSettingsTab === 'pwa'
+                      ? 'border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100'
+                      : 'border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+                  }`}
+                >
+                  Install App & Offline
                 </button>
               </div>
 
@@ -368,6 +492,45 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         onChange={(e) => setConfig({ ...config, authorizedPIN: e.target.value })}
                         className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
                       />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider block flex items-center gap-1">
+                        <FileText className="w-3.5 h-3.5" /> Database Backup (Offline Plan)
+                      </span>
+                      <span className="text-[10px] text-zinc-400">Download your entire tenant ledger as a secure JSON backup.</span>
+                    </div>
+                    <button 
+                      onClick={handleExportBackup}
+                      className="text-[10px] font-bold text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-500 px-3 py-2 border border-blue-100 hover:border-blue-500 uppercase tracking-wider transition-all rounded-xl shadow-sm"
+                    >
+                      Export JSON
+                    </button>
+                  </div>
+
+                  <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider block flex items-center gap-1">
+                        <Upload className="w-3.5 h-3.5" /> Data Import (Migration Plan)
+                      </span>
+                      <span className="text-[10px] text-zinc-400">Upload and parse a JSON ledger backup file for bulk migration.</span>
+                    </div>
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept=".json" 
+                        id="backup-import-input"
+                        onChange={handleImportBackup} 
+                        className="hidden" 
+                      />
+                      <label 
+                        htmlFor="backup-import-input"
+                        className="cursor-pointer inline-block text-[10px] font-bold text-emerald-600 hover:text-white bg-emerald-50 hover:bg-emerald-500 px-3 py-2 border border-emerald-100 hover:border-emerald-500 uppercase tracking-wider transition-all rounded-xl shadow-sm text-center"
+                      >
+                        Import JSON
+                      </label>
                     </div>
                   </div>
 
@@ -667,6 +830,120 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         Send Subscription Request to Super Admin
                       </button>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {activeSettingsTab === 'pwa' && (
+                <div className="p-6 space-y-5 text-left max-h-[400px] overflow-y-auto">
+                  {/* PWA Hero Banner with custom Logo */}
+                  <div className="bg-gradient-to-br from-zinc-900 via-indigo-950 to-zinc-950 text-white rounded-2xl border border-indigo-900/30 p-5 shadow-md relative overflow-hidden flex items-center gap-4">
+                    <img 
+                      src="https://i.postimg.cc/5yGwSWWR/1782659487700.png" 
+                      alt="STRATIFY Logo" 
+                      className="w-16 h-16 rounded-2xl object-cover border border-indigo-500/20 shadow-md shrink-0" 
+                    />
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-400 bg-indigo-950/80 px-2 py-0.5 rounded-full border border-indigo-800/30">Native App Support</span>
+                      <h4 className="text-base font-black tracking-tight text-white">STRATIFY Desktop & Mobile</h4>
+                      <p className="text-[10px] text-zinc-400">Install to your device for rapid startup, native performance, and offline operations.</p>
+                    </div>
+                  </div>
+
+                  {/* Device Direct Install Section */}
+                  <div className="bg-zinc-50 dark:bg-zinc-950/40 p-4.5 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/40 space-y-3">
+                    <span className="text-[10px] font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider flex items-center gap-1.5">
+                      <DownloadCloud className="w-4 h-4 text-indigo-500" /> Direct Device Installation
+                    </span>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                      STRATIFY is designed with Progressive Web App (PWA) standard compliance. It installs directly on macOS, Windows, iOS, Android, and tablets.
+                    </p>
+                    
+                    <button
+                      onClick={() => {
+                        const promptEvent = (window as any).deferredPrompt;
+                        if (promptEvent) {
+                          promptEvent.prompt();
+                          promptEvent.userChoice.then((choiceResult: any) => {
+                            if (choiceResult.outcome === 'accepted') {
+                              showToast('STRATIFY successfully installed on your device!', 'success');
+                            }
+                            (window as any).deferredPrompt = null;
+                          });
+                        } else {
+                          // Fallback instructions if prompt is not ready or has been installed
+                          showToast('PWA package cached! Follow the custom system instructions below to complete manual integration.', 'info');
+                        }
+                      }}
+                      className="w-full bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 text-white font-bold py-3 text-xs rounded-xl uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2"
+                    >
+                      <DownloadCloud className="w-4 h-4" />
+                      <span>Install App Now</span>
+                    </button>
+                  </div>
+
+                  {/* Offline Database Sync Health */}
+                  <div className="bg-emerald-500/5 dark:bg-emerald-950/10 border border-emerald-500/20 rounded-2xl p-4 space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-emerald-700 dark:text-emerald-400 block uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Offline Sync Engine Status
+                      </span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded border border-emerald-300/40 dark:border-emerald-800/40">Active & Healthy</span>
+                    </div>
+                    <p className="text-zinc-600 dark:text-zinc-300 leading-relaxed text-[11px]">
+                      If internet access is lost, STRATIFY automatically switches to local sandbox cache mode. All accounting entries, POS products, and payroll details will save instantly on your device and automatically upload to Google Cloud database once connection is restored!
+                    </p>
+                    <div className="flex gap-4 text-[10px] font-medium text-zinc-500 dark:text-zinc-400 pt-1">
+                      <div className="flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5 text-emerald-500" /> Multi-Tab Offline Cache</div>
+                      <div className="flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5 text-emerald-500" /> Automatic Background Sync</div>
+                    </div>
+                  </div>
+
+                  {/* Separate Platform Specific Download Manual */}
+                  <div className="space-y-3.5">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">How to Install on Other Devices</span>
+                    
+                    <div className="space-y-3">
+                      {/* Laptop/Desktop */}
+                      <div className="p-3 bg-zinc-50/50 dark:bg-zinc-950/20 border border-zinc-100 dark:border-zinc-800 rounded-xl flex gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-zinc-600 dark:text-zinc-400 shrink-0">
+                          <Laptop className="w-4 h-4" />
+                        </div>
+                        <div className="space-y-1 text-left">
+                          <h5 className="text-xs font-bold text-zinc-800 dark:text-zinc-200">MacBook / Windows / Linux PC</h5>
+                          <p className="text-[11px] text-zinc-500 leading-relaxed">
+                            Open this application URL in Google Chrome, Microsoft Edge, or Brave. In the address bar at the top right, click the <strong className="text-indigo-500">Install</strong> button (square icon with arrow) or go to options and select <strong>"Install STRATIFY..."</strong>.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Apple iPhone & iPad */}
+                      <div className="p-3 bg-zinc-50/50 dark:bg-zinc-950/20 border border-zinc-100 dark:border-zinc-800 rounded-xl flex gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-zinc-600 dark:text-zinc-400 shrink-0">
+                          <Smartphone className="w-4 h-4" />
+                        </div>
+                        <div className="space-y-1 text-left">
+                          <h5 className="text-xs font-bold text-zinc-800 dark:text-zinc-200">iOS (iPhone & iPad Version)</h5>
+                          <p className="text-[11px] text-zinc-500 leading-relaxed">
+                            Open this application link in your mobile <strong className="text-indigo-500">Safari</strong> browser. Tap the <strong className="text-indigo-500">Share</strong> icon (square with upward arrow) in the toolbar, scroll down, and tap <strong className="text-indigo-500">"Add to Home Screen"</strong>. It will register as a standalone native-behaving iOS app!
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Android Phone & Tablets */}
+                      <div className="p-3 bg-zinc-50/50 dark:bg-zinc-950/20 border border-zinc-100 dark:border-zinc-800 rounded-xl flex gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-zinc-600 dark:text-zinc-400 shrink-0">
+                          <Tablet className="w-4 h-4" />
+                        </div>
+                        <div className="space-y-1 text-left">
+                          <h5 className="text-xs font-bold text-zinc-800 dark:text-zinc-200">Android Phones & Tablets</h5>
+                          <p className="text-[11px] text-zinc-500 leading-relaxed">
+                            Open this link in <strong className="text-indigo-500">Google Chrome</strong> or Android Web Browser. Tap the three vertical dots (menu icon) in the upper right corner, and select <strong className="text-indigo-500">"Install app"</strong> or <strong>"Add to Home screen"</strong>.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

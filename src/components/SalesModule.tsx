@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { TrendingUp, Percent, FileSpreadsheet, PlusCircle } from 'lucide-react';
+import { TrendingUp, Percent, FileSpreadsheet, PlusCircle, Printer } from 'lucide-react';
 import { 
   BarChart, 
   Bar, 
@@ -87,7 +87,15 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
           <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white font-sans">💰 Sales</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">Manage client sales invoices, output taxes, revenue trends, and customer balances.</p>
         </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 self-start sm:self-auto no-print">
+          <button 
+            onClick={() => window.print()}
+            className="flex items-center gap-2 text-xs bg-zinc-950 hover:bg-zinc-800 text-white font-bold px-4 py-2.5 rounded-xl transition-colors border border-zinc-800 shadow-sm focus:outline-none"
+            title="Print sales invoice report"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print Report</span>
+          </button>
           <button 
             onClick={onOpenSalesModal}
             className="flex items-center gap-2 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm focus:outline-none"
@@ -98,7 +106,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
         <motion.div variants={itemVariants} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-2xl flex items-start justify-between shadow-sm">
           <div className="space-y-2">
             <span className="text-xs font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Sales Gross</span>
@@ -144,7 +152,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
         </motion.div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 no-print">
         <motion.div variants={itemVariants} className="lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-2xl shadow-sm min-h-[380px] flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider mb-4">Monthly Sales Gross Revenue</h3>

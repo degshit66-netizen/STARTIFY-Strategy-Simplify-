@@ -6,12 +6,15 @@ import { r2, cleanDate } from '../utils/helpers';
 
 interface SchedulerModuleProps {
   showToast: (msg: string, type: 'success' | 'error' | 'info') => void;
+  tasks: SchedulerTask[];
+  setTasks: (tasks: SchedulerTask[]) => void;
 }
 
 export const SchedulerModule: React.FC<SchedulerModuleProps> = ({
-  showToast
+  showToast,
+  tasks,
+  setTasks
 }) => {
-  const [tasks, setTasks] = useState<SchedulerTask[]>([]);
   const [editId, setEditId] = useState<number | null>(null);
 
   // Form Fields
@@ -19,25 +22,6 @@ export const SchedulerModule: React.FC<SchedulerModuleProps> = ({
   const [taskDue, setTaskDue] = useState('');
   const [taskModule, setTaskModule] = useState('General Ledger');
   const [taskStatus, setTaskStatus] = useState<'Open' | 'In Progress' | 'Done'>('Open');
-
-  React.useEffect(() => {
-    // Hydrate default deadlines if empty
-    try {
-      const stored = localStorage.getItem('stratify_tasks');
-      if (stored) {
-        setTasks(JSON.parse(stored));
-      } else {
-        const defaults: SchedulerTask[] = [
-          { id: 1, title: 'BIR 2550Q VAT Filing Deadline', dueDate: `${new Date().getFullYear()}-07-25`, module: 'Value-Added Tax', status: 'Open' },
-          { id: 2, title: 'Annual Income Tax 1702 Return Compilation', dueDate: `${new Date().getFullYear()}-04-15`, module: 'Income Tax', status: 'Done' },
-          { id: 3, title: 'Monthly SEC/BIR S.A.S. Submission', dueDate: `${new Date().getFullYear()}-07-10`, module: 'Financial Statements', status: 'In Progress' },
-          { id: 4, title: 'Submit Bound Loose-Leaf Books (Affidavit Annex C)', dueDate: `${new Date().getFullYear()}-01-30`, module: 'Loose Leaf Compliance', status: 'Open' }
-        ];
-        setTasks(defaults);
-        localStorage.setItem('stratify_tasks', JSON.stringify(defaults));
-      }
-    } catch (e) {}
-  }, []);
 
   const handleSaveTask = () => {
     const title = taskTitle.trim();
@@ -269,16 +253,31 @@ export const SchedulerModule: React.FC<SchedulerModuleProps> = ({
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 text-xs">
                 {tasks.length ? tasks.map(t => {
                   const due = new Date(t.dueDate);
-                  const isOverdue = t.status !== 'Done' && due < new Date();
+                  due.setHours(0,0,0,0);
+                  const today = new Date();
+                  today.setHours(0,0,0,0);
+                  const diffTime = due.getTime() - today.getTime();
+                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                  const isOverdue = t.status !== 'Done' && diffDays < 0;
+                  const isNearDue = t.status !== 'Done' && diffDays >= 0 && diffDays <= 5;
                   return (
                     <tr key={t.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/10 transition-colors">
-                      <td className="px-5 py-3.5 font-bold text-zinc-800 dark:text-zinc-200">{t.title}</td>
+                      <td className="px-5 py-3.5 font-bold text-zinc-800 dark:text-zinc-200">
+                        <div className="space-y-0.5">
+                          <div>{t.title}</div>
+                          {isNearDue && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-extrabold bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 px-1.5 py-0.5 rounded border border-amber-200/50 dark:border-amber-900/30 uppercase tracking-wider">
+                              ⏰ Due in {diffDays} day{diffDays === 1 ? '' : 's'}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-5 py-3.5 font-semibold text-zinc-500 dark:text-zinc-400">{t.module}</td>
                       <td className="px-5 py-3.5 font-bold font-mono text-zinc-800 dark:text-zinc-300">
                         <div className="flex flex-col">
                           <span>{cleanDate(t.dueDate)}</span>
                           {isOverdue && (
-                            <span className="text-[10px] text-red-500 font-bold uppercase mt-0.5">Overdue</span>
+                            <span className="text-[10px] text-red-500 font-bold uppercase mt-0.5">⚠️ Overdue</span>
                           )}
                         </div>
                       </td>

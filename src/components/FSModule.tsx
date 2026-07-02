@@ -249,7 +249,7 @@ export const FSModule: React.FC<FSModuleProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5 no-print">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white font-sans">📑 Financial Statements</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">Generate, audit, and print complete BIR-compliant books of accounts and statements.</p>
@@ -271,7 +271,7 @@ export const FSModule: React.FC<FSModuleProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 no-print">
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4.5 rounded-2xl shadow-sm">
           <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Ledger Compliance Status</span>
           <div className="flex items-center gap-2 mt-1">

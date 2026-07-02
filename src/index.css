@@ -25,87 +25,63 @@ html, body, #root {
 }
 
 @media print {
-  /* Hide unnecessary elements */
+  /* Hide UI and interaction elements */
   .no-print,
   aside,
   header,
-  footer,
   button,
   select,
   input,
-  .no-print * {
+  .toast,
+  [role="alert"] {
     display: none !important;
   }
 
-  /* When printing the financial statements, enforce full container focus and absolute visibility overrides */
-  body.is-printing-fs {
-    background-color: white !important;
-    color: black !important;
-    overflow: visible !important;
+  /* Reset layout constraints to flow naturally on paper */
+  html, body, #root, main, div.flex-1, div.overflow-hidden, div.flex, .overflow-y-auto {
     height: auto !important;
-    width: 100% !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    overflow-y: visible !important;
     position: static !important;
-  }
-
-  body.is-printing-fs #fsPrintContainer {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
+    display: block !important;
     width: 100% !important;
     max-width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    box-shadow: none !important;
-    display: block !important;
     background: white !important;
     color: black !important;
-  }
-
-  body.is-printing-fs main {
-    overflow: visible !important;
-    position: static !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    height: auto !important;
-  }
-
-  body.is-printing-fs .no-print,
-  body.is-printing-fs header,
-  body.is-printing-fs aside,
-  body.is-printing-fs button,
-  body.is-printing-fs select,
-  body.is-printing-fs .grid:not(#fsPrintContainer *),
-  body.is-printing-fs div:not(#fsPrintContainer):not(#fsPrintContainer *) {
-    display: none !important;
-  }
-
-  /* Make sure background is white and text is readable */
-  body, 
-  main,
-  div,
-  section,
-  article,
-  span,
-  p,
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6,
-  table,
-  tr,
-  th,
-  td {
-    background-color: white !important;
-    background-image: none !important;
-    color: black !important;
     box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Keep table text dark and backgrounds clean */
+  p, span, h1, h2, h3, h4, h5, h6, td, th {
+    color: #000000 !important;
     text-shadow: none !important;
-    border-color: #000000 !important;
+  }
+
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    margin-top: 15px !important;
+    margin-bottom: 15px !important;
+  }
+
+  th, td {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+    border-bottom: 1px solid #111 !important;
+    background-color: white !important;
+    color: black !important;
+  }
+
+  /* Maintain layout visual spacing */
+  .bg-white, .dark\:bg-zinc-900, .bg-zinc-50, .dark\:bg-zinc-950\/60 {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    border-color: #e4e4e7 !important;
+    box-shadow: none !important;
   }
 
   /* Optimize layout for full sheet print */

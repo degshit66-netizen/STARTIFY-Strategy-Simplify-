@@ -11,7 +11,11 @@ import {
   TrendingUp,
   TrendingDown,
   DollarSign,
-  Wallet
+  Wallet,
+  Lock,
+  Unlock,
+  Key,
+  Printer
 } from 'lucide-react';
 import { LedgerEntry } from '../types';
 import { displayMoney, formatCurrency, cleanDate, isMonthLocked } from '../utils/helpers';
@@ -29,6 +33,8 @@ interface LedgerTableProps {
   onPrintDV?: (entry: LedgerEntry) => void;
   lockedQuarters?: Record<string, boolean>;
   lockedMonths?: Record<string, boolean>;
+  onUpdateLocks?: (months: Record<string, boolean>, quarters: Record<string, boolean>) => void;
+  authorizedPIN?: string;
   setSearchQuery?: (query: string) => void;
   setMonthFilter?: (month: string) => void;
   setQuarterFilter?: (quarter: string) => void;
@@ -47,14 +53,19 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
   onPrintDV,
   lockedQuarters = {},
   lockedMonths = {},
-  setSearchQuery: propSetSearchQuery
+  onUpdateLocks,
+  authorizedPIN = '1234',
+  setSearchQuery: propSetSearchQuery,
+  setMonthFilter
 }) => {
   const [localSearch, setLocalSearch] = React.useState('');
   const searchQuery = propSearchQuery !== undefined ? propSearchQuery : localSearch;
   const setSearchQuery = propSetSearchQuery || setLocalSearch;
 
+  const [isLockManagerOpen, setIsLockManagerOpen] = React.useState(false);
   const [sortCol, setSortCol] = React.useState<keyof LedgerEntry>('date');
   const [sortAsc, setSortAsc] = React.useState<boolean>(false);
+  const [subTab, setSubTab] = React.useState<'all' | 'sales' | 'purchases'>('all');
 
   const handleSort = (col: keyof LedgerEntry) => {
     if (sortCol === col) {
@@ -62,6 +73,52 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
     } else {
       setSortCol(col);
       setSortAsc(true);
+    }
+  };
+
+  const handleToggleMonthLock = (m: string) => {
+    if (!onUpdateLocks) return;
+    const key = `${m.toUpperCase()}_${yearFilter}`;
+    const currentlyLocked = lockedMonths[key] === true;
+    
+    if (currentlyLocked) {
+      const pin = prompt(`Enter Admin PIN to unlock ${m} ${yearFilter}:`);
+      if (pin === null) return;
+      if (pin === authorizedPIN) {
+        const nextMonths = { ...lockedMonths };
+        delete nextMonths[key];
+        onUpdateLocks(nextMonths, lockedQuarters);
+      } else {
+        alert("Incorrect Admin PIN. Access denied.");
+      }
+    } else {
+      if (confirm(`Are you sure you want to lock ${m} ${yearFilter}? This will prevent any editing or voiding of transactions in this period.`)) {
+        const nextMonths = { ...lockedMonths, [key]: true };
+        onUpdateLocks(nextMonths, lockedQuarters);
+      }
+    }
+  };
+
+  const handleToggleQuarterLock = (q: string) => {
+    if (!onUpdateLocks) return;
+    const key = `${q.toUpperCase()}_${yearFilter}`;
+    const currentlyLocked = lockedQuarters[key] === true;
+    
+    if (currentlyLocked) {
+      const pin = prompt(`Enter Admin PIN to unlock ${q} ${yearFilter}:`);
+      if (pin === null) return;
+      if (pin === authorizedPIN) {
+        const nextQuarters = { ...lockedQuarters };
+        delete nextQuarters[key];
+        onUpdateLocks(lockedMonths, nextQuarters);
+      } else {
+        alert("Incorrect Admin PIN. Access denied.");
+      }
+    } else {
+      if (confirm(`Are you sure you want to lock ${q} ${yearFilter}? This will prevent any editing or voiding in all months within this quarter.`)) {
+        const nextQuarters = { ...lockedQuarters, [key]: true };
+        onUpdateLocks(lockedMonths, nextQuarters);
+      }
     }
   };
 
@@ -101,6 +158,12 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
     return true;
   });
 
+  const subFiltered = filtered.filter(row => {
+    if (subTab === 'sales') return row.type === 'Sales';
+    if (subTab === 'purchases') return row.type === 'Expense';
+    return true;
+  });
+
   // Calculate totals for currently filtered transactions (excluding voided, closings, setups)
   const activeFiltered = filtered.filter(r => r.status !== 'Void' && r.type !== 'Closing' && r.type !== 'Setup');
   const totalSales = activeFiltered.filter(r => r.type === 'Sales').reduce((a, b) => a + b.gross, 0);
@@ -108,7 +171,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
   const totalNet = totalSales - totalExpenses;
 
   // Sorting
-  const sorted = [...filtered].sort((a, b) => {
+  const sorted = [...subFiltered].sort((a, b) => {
     let valA = a[sortCol];
     let valB = b[sortCol];
     
@@ -122,7 +185,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 no-print">
         <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 p-4 rounded-2xl flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-500">Filtered Sales Gross</span>
@@ -166,15 +229,185 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
             <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">General Ledger Registry</h3>
             <p className="text-xs text-zinc-500 mt-1">Listing {sorted.length} transaction entries based on current filters.</p>
           </div>
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-            <input 
-              type="text" 
-              placeholder="Search references, clients, categories..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl pl-10 pr-4 py-2 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+            {setMonthFilter && (
+              <div className="relative">
+                <select
+                  value={monthFilter}
+                  onChange={(e) => setMonthFilter(e.target.value)}
+                  className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-xs font-bold py-2 pl-3 pr-8 rounded-xl appearance-none focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                >
+                  <option value="ALL">All Months</option>
+                  <option value="JANUARY">January</option>
+                  <option value="FEBRUARY">February</option>
+                  <option value="MARCH">March</option>
+                  <option value="APRIL">April</option>
+                  <option value="MAY">May</option>
+                  <option value="JUNE">June</option>
+                  <option value="JULY">July</option>
+                  <option value="AUGUST">August</option>
+                  <option value="SEPTEMBER">September</option>
+                  <option value="OCTOBER">October</option>
+                  <option value="NOVEMBER">November</option>
+                  <option value="DECEMBER">December</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-zinc-400">
+                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                </div>
+              </div>
+            )}
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <input 
+                type="text" 
+                placeholder="Search references, clients, categories..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl pl-10 pr-4 py-2 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+              />
+            </div>
+            <button
+              onClick={() => window.print()}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs bg-zinc-900 hover:bg-zinc-800 text-white font-bold transition-all border border-zinc-800 shadow-sm shrink-0 no-print"
+              title="Print current filtered ledger entries"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print Registry</span>
+            </button>
+
+            {onUpdateLocks && (
+              <button
+                onClick={() => setIsLockManagerOpen(!isLockManagerOpen)}
+                className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all border shadow-sm shrink-0 ${
+                  isLockManagerOpen 
+                    ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-950/40 dark:border-blue-900/40 dark:text-blue-400 font-extrabold'
+                    : 'bg-zinc-50 hover:bg-zinc-100 border-zinc-200 dark:bg-zinc-950 dark:hover:bg-zinc-900 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300'
+                }`}
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>Lock Mgr</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Collapsible Lock Manager Panel */}
+        {isLockManagerOpen && onUpdateLocks && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            className="border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/10 p-5 space-y-4"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4 text-blue-500 shrink-0" />
+                <div>
+                  <h4 className="text-xs font-extrabold uppercase tracking-widest text-zinc-800 dark:text-zinc-200">Period Lock Control ({yearFilter})</h4>
+                  <p className="text-[10px] text-zinc-500 font-medium">Toggle locks on months or quarters. Locked periods prevent editing/voiding transactions.</p>
+                </div>
+              </div>
+              <div className="text-[10px] font-bold bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 px-2.5 py-1 rounded-lg border border-amber-200/50 dark:border-amber-900/20 flex items-center gap-1 self-start sm:self-auto">
+                <Key className="w-3 h-3 text-amber-500" /> Admin Auth PIN Required for Unlocks
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Quarters Column */}
+              <div className="space-y-2.5">
+                <h5 className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> Quarterly Locks
+                </h5>
+                <div className="grid grid-cols-2 gap-2">
+                  {['Q1', 'Q2', 'Q3', 'Q4'].map(q => {
+                    const key = `${q}_${yearFilter}`;
+                    const isLocked = lockedQuarters[key] === true;
+                    return (
+                      <button
+                        key={q}
+                        onClick={() => handleToggleQuarterLock(q)}
+                        className={`flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all border ${
+                          isLocked 
+                            ? 'bg-blue-50/50 border-blue-200 text-blue-600 dark:bg-blue-950/30 dark:border-blue-900/30 dark:text-blue-400 font-extrabold' 
+                            : 'bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800/60 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300'
+                        }`}
+                      >
+                        <span>{q}</span>
+                        <span>{isLocked ? '🔒 Locked' : '🔓 Open'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Months Column */}
+              <div className="space-y-2.5 md:col-span-2">
+                <h5 className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> Monthly Locks
+                </h5>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {[
+                    'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+                    'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
+                  ].map(m => {
+                    const key = `${m}_${yearFilter}`;
+                    const isLocked = lockedMonths[key] === true;
+                    return (
+                      <button
+                        key={m}
+                        onClick={() => handleToggleMonthLock(m)}
+                        className={`flex items-center justify-between px-3 py-2 rounded-xl text-[10px] font-bold transition-all border ${
+                          isLocked 
+                            ? 'bg-blue-50/50 border-blue-200 text-blue-600 dark:bg-blue-950/30 dark:border-blue-900/30 dark:text-blue-400 font-extrabold shadow-inner' 
+                            : 'bg-white hover:bg-zinc-50 border-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800/60 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400'
+                        }`}
+                      >
+                        <span className="truncate pr-1">{m.charAt(0) + m.slice(1).toLowerCase()}</span>
+                        <span>{isLocked ? '🔒' : '🔓'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* 3 Ledger Subtabs Bar */}
+        <div className="border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/40 dark:bg-zinc-950/20 px-5 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/30">
+            <button
+              onClick={() => setSubTab('all')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                subTab === 'all'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm border border-zinc-200/30 dark:border-zinc-700/50'
+                  : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+              }`}
+            >
+              General Ledger
+            </button>
+            <button
+              onClick={() => setSubTab('sales')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                subTab === 'sales'
+                  ? 'bg-white dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400 shadow-sm border border-zinc-200/30 dark:border-zinc-700/50'
+                  : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+              }`}
+            >
+              Sales Ledger
+            </button>
+            <button
+              onClick={() => setSubTab('purchases')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                subTab === 'purchases'
+                  ? 'bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 shadow-sm border border-zinc-200/30 dark:border-zinc-700/50'
+                  : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+              }`}
+            >
+              Purchase Ledger
+            </button>
+          </div>
+          <div className="text-[10px] font-mono text-zinc-400 font-bold uppercase tracking-wider hidden sm:block">
+            Showing {sorted.length} {subTab === 'all' ? 'GL' : subTab === 'sales' ? 'Sales' : 'Purchase'} entries
           </div>
         </div>
 
@@ -219,7 +452,13 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
                         ) : isClosing ? (
                           <span className="text-[10px] font-bold text-zinc-500 bg-zinc-100 dark:bg-zinc-800/50 px-2 py-0.5 rounded border border-zinc-200/50 dark:border-zinc-800/30 uppercase tracking-wider">System</span>
                         ) : isLocked ? (
-                          <span className="text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded border border-blue-200/40 dark:border-blue-900/20 uppercase tracking-wider">🔒 Locked</span>
+                          <button
+                            onClick={() => handleToggleMonthLock(row.month)}
+                            className="text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-900/40 px-2 py-0.5 rounded border border-blue-200/40 dark:border-blue-900/20 uppercase tracking-wider flex items-center gap-1 cursor-pointer transition-all shrink-0 shadow-sm"
+                            title="This month is locked. Click to unlock using Admin PIN."
+                          >
+                            <span>🔒 Locked</span>
+                          </button>
                         ) : (
                           <>
                             {currentUserRole === 'admin' ? (

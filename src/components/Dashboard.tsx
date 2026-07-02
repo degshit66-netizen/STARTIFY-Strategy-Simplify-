@@ -9,7 +9,8 @@ import {
   Percent, 
   ArrowUpRight, 
   ArrowDownRight,
-  FileText
+  FileText,
+  HeartPulse
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -68,6 +69,50 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const operatingExpenses = Math.max(0, r2(totalPurchNet - costOfSales));
   const grossProfit = r2(totalSalesNet - costOfSales);
   const netIncome = r2(grossProfit - operatingExpenses);
+
+  // Month-over-month Financial Health Summary Calculations
+  const curMonth = monthFilter !== 'ALL' ? monthFilter.toUpperCase() : MONTH_NAMES[new Date().getMonth()];
+  const curYear = yearFilter !== 'ALL' ? yearFilter : String(new Date().getFullYear());
+
+  const curMonthIndex = MONTH_NAMES.indexOf(curMonth);
+  const prevMonthIndex = curMonthIndex === 0 ? 11 : curMonthIndex - 1;
+  const prevMonth = MONTH_NAMES[prevMonthIndex];
+  const prevYear = curMonthIndex === 0 ? String(parseInt(curYear) - 1) : curYear;
+
+  const curMonthRows = ledger.filter(r => r.status !== 'Void' && String(r.month).toUpperCase() === curMonth && String(new Date(r.date).getFullYear()) === curYear);
+  const prevMonthRows = ledger.filter(r => r.status !== 'Void' && String(r.month).toUpperCase() === prevMonth && String(new Date(r.date).getFullYear()) === prevYear);
+
+  const curSales = curMonthRows.filter(r => r.type === 'Sales').reduce((sum, r) => sum + r2(parseNum(r.gross)), 0);
+  const curExpenses = curMonthRows.filter(r => r.type === 'Expense').reduce((sum, r) => sum + r2(parseNum(r.gross)), 0);
+  const curNet = r2(curSales - curExpenses);
+
+  const prevSales = prevMonthRows.filter(r => r.type === 'Sales').reduce((sum, r) => sum + r2(parseNum(r.gross)), 0);
+  const prevExpenses = prevMonthRows.filter(r => r.type === 'Expense').reduce((sum, r) => sum + r2(parseNum(r.gross)), 0);
+  const prevNet = r2(prevSales - prevExpenses);
+
+  // Sales Growth %
+  let salesGrowth = 0;
+  if (prevSales > 0) {
+    salesGrowth = r2(((curSales - prevSales) / prevSales) * 100);
+  } else if (curSales > 0) {
+    salesGrowth = 100;
+  }
+
+  // Expense Growth %
+  let expenseGrowth = 0;
+  if (prevExpenses > 0) {
+    expenseGrowth = r2(((curExpenses - prevExpenses) / prevExpenses) * 100);
+  } else if (curExpenses > 0) {
+    expenseGrowth = 100;
+  }
+
+  // Net Cash Flow Growth %
+  let netGrowth = 0;
+  if (prevNet !== 0) {
+    netGrowth = r2(((curNet - prevNet) / Math.abs(prevNet)) * 100);
+  } else if (curNet !== 0) {
+    netGrowth = curNet > 0 ? 100 : -100;
+  }
 
   const recent = [...filteredRows]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -189,6 +234,100 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </motion.div>
       </div>
+
+      {/* MoM Financial Health Summary Section */}
+      <motion.div 
+        variants={itemVariants} 
+        className="bg-gradient-to-r from-emerald-500/10 via-blue-500/5 to-zinc-500/5 dark:from-emerald-950/20 dark:via-blue-950/10 dark:to-zinc-950/10 border border-emerald-100/60 dark:border-emerald-900/20 p-6 rounded-2xl shadow-sm space-y-4"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-emerald-100/30 dark:border-emerald-900/10 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0">
+              <HeartPulse className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">Financial Health Summary</h3>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Comparing <strong className="text-emerald-600 dark:text-emerald-400">{curMonth} {curYear}</strong> with preceding month <strong className="text-zinc-600 dark:text-zinc-400">{prevMonth} {prevYear}</strong>
+              </p>
+            </div>
+          </div>
+          <div className="text-xs font-bold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800/80 px-3 py-1 rounded-lg border border-zinc-200/50 dark:border-zinc-700/50 self-start sm:self-auto font-mono shadow-sm">
+            Trend Assessment: {curNet >= prevNet ? '📈 Improving Margin' : '📉 Retracting Margin'}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Sales MoM */}
+          <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800 flex flex-col justify-between shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest truncate">Monthly Gross Sales</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 shrink-0 ${salesGrowth >= 0 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' : 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400'}`}>
+                {salesGrowth >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                {salesGrowth >= 0 ? '+' : ''}{salesGrowth}%
+              </span>
+            </div>
+            <div className="mt-2.5">
+              <div className="text-base font-extrabold text-zinc-800 dark:text-zinc-100">{displayMoney(curSales)}</div>
+              <div className="text-[10px] text-zinc-400 mt-1 font-medium flex items-center justify-between gap-1">
+                <span>Prev: {displayMoney(prevSales)}</span>
+                <span className="font-semibold text-zinc-500 font-mono">Diff: {salesGrowth >= 0 ? '+' : ''}{displayMoney(curSales - prevSales)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Purchases MoM */}
+          <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800 flex flex-col justify-between shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest truncate">Monthly Expenses</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 shrink-0 ${expenseGrowth <= 0 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' : 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400'}`}>
+                {expenseGrowth >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                {expenseGrowth >= 0 ? '+' : ''}{expenseGrowth}%
+              </span>
+            </div>
+            <div className="mt-2.5">
+              <div className="text-base font-extrabold text-zinc-800 dark:text-zinc-100">{displayMoney(curExpenses)}</div>
+              <div className="text-[10px] text-zinc-400 mt-1 font-medium flex items-center justify-between gap-1">
+                <span>Prev: {displayMoney(prevExpenses)}</span>
+                <span className="font-semibold text-zinc-500 font-mono">Diff: {expenseGrowth >= 0 ? '+' : ''}{displayMoney(curExpenses - prevExpenses)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Net Cash Generation */}
+          <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800 flex flex-col justify-between shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest truncate">Net Cash Generated</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 shrink-0 ${netGrowth >= 0 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' : 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400'}`}>
+                {netGrowth >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                {netGrowth >= 0 ? '+' : ''}{netGrowth}%
+              </span>
+            </div>
+            <div className="mt-2.5">
+              <div className={`text-base font-extrabold ${curNet >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600'}`}>
+                {displayMoney(curNet)}
+              </div>
+              <div className="text-[10px] text-zinc-400 mt-1 font-medium flex items-center justify-between gap-1">
+                <span>Prev: {displayMoney(prevNet)}</span>
+                <span className="font-semibold text-zinc-500 font-mono">Diff: {netGrowth >= 0 ? '+' : ''}{displayMoney(curNet - prevNet)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-emerald-50/40 dark:bg-emerald-950/10 p-3 rounded-xl border border-emerald-100/50 dark:border-emerald-900/10 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+          💡 <strong className="uppercase">Smart Health Diagnosis:</strong>{' '}
+          {salesGrowth > 0 && expenseGrowth < 0 ? (
+            <span>Outstanding performance! Sales increased by {salesGrowth}% while overhead decreased by {Math.abs(expenseGrowth)}%, leading to a substantial margin expansion of {netGrowth}%.</span>
+          ) : salesGrowth > 0 && expenseGrowth >= 0 ? (
+            <span>Positive top-line revenue expansion. Sales grew by {salesGrowth}%, offsetting the {expenseGrowth}% overhead increases. Net income trended by {netGrowth >= 0 ? '+' : ''}{netGrowth}%.</span>
+          ) : salesGrowth < 0 && expenseGrowth < 0 ? (
+            <span>Defensive cost containment. Although sales contracted by {Math.abs(salesGrowth)}%, tight operational spending cuts of {Math.abs(expenseGrowth)}% cushioned the bottom line, affecting net profit by {netGrowth}%.</span>
+          ) : (
+            <span>Attention required. Top-line sales decreased by {Math.abs(salesGrowth)}% while business overhead increased by {expenseGrowth}%, compressing your net margin by {Math.abs(netGrowth)}%. Evaluate marketing and cost controls.</span>
+          )}
+        </div>
+      </motion.div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <motion.div variants={itemVariants} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-2xl shadow-sm">
