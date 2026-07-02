@@ -190,23 +190,18 @@ export default function App() {
     }
   }, [users]);
 
-  const handleLogin = async (user: User, tenant?: Tenant) => {
+  const handleLogin = (user: User, tenant?: Tenant) => {
     localStorage.setItem('current_user_id', user.id);
-    setCurrentUser(user);
     if (tenant) {
       localStorage.setItem('current_tenant_id', tenant.id);
       
       const isFirstLogin = !localStorage.getItem(`onboarded_${user.id}_${tenant.id}`);
       if (isFirstLogin) {
         localStorage.setItem(`onboarded_${user.id}_${tenant.id}`, 'true');
-        setShowOnboarding(true);
+        localStorage.setItem('show_onboarding_pending', 'true');
       }
-      
-      setIsInitializing(true);
-      await loadStorageFromFirebase(tenant.id);
-      setCurrentTenant(tenant);
-      setIsInitializing(false);
     }
+    window.location.reload();
   };
 
   const handleLogout = () => {
@@ -542,6 +537,48 @@ export default function App() {
     }
   ].filter(Boolean) as { title: string, items: { id: string, label: string, icon: any }[] }[];
 
+  if (isInitializing) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-zinc-950 text-white">
+        <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-zinc-400 font-medium animate-pulse tracking-wide uppercase text-sm">Loading STRATIFY Workspace...</p>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <Auth 
+        onLogin={handleLogin}
+        tenants={tenants}
+        setTenants={setTenants}
+        users={users}
+        setUsers={setUsers}
+      />
+    );
+  }
+
+  if (currentUser.role === 'superadmin') {
+    return (
+      <SuperAdminDashboard 
+        tenants={tenants}
+        setTenants={setTenants}
+        users={users}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  if (isTrialExpired) {
+    return (
+      <SubscriptionPrompt 
+        tenant={currentTenant}
+        user={currentUser}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
   // Build real-time alerts for Scheduler tasks and expiring subscription/trials
   const notifications = useMemo(() => {
     const notifs: { id: string; type: 'task' | 'subscription' | 'system'; title: string; desc: string; severity: 'high' | 'medium' | 'info' }[] = [];
@@ -628,48 +665,6 @@ export default function App() {
 
     return notifs;
   }, [tasks, currentTenant, currentUser, tenants]);
-
-  if (isInitializing) {
-    return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-zinc-950 text-white">
-        <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-zinc-400 font-medium animate-pulse tracking-wide uppercase text-sm">Loading STRATIFY Workspace...</p>
-      </div>
-    );
-  }
-
-  if (!currentUser) {
-    return (
-      <Auth 
-        onLogin={handleLogin}
-        tenants={tenants}
-        setTenants={setTenants}
-        users={users}
-        setUsers={setUsers}
-      />
-    );
-  }
-
-  if (currentUser.role === 'superadmin') {
-    return (
-      <SuperAdminDashboard 
-        tenants={tenants}
-        setTenants={setTenants}
-        users={users}
-        onLogout={handleLogout}
-      />
-    );
-  }
-
-  if (isTrialExpired) {
-    return (
-      <SubscriptionPrompt 
-        tenant={currentTenant}
-        user={currentUser}
-        onLogout={handleLogout}
-      />
-    );
-  }
 
   return (
     <div className="h-screen h-[100dvh] overflow-hidden bg-white dark:bg-zinc-950 flex flex-col font-sans transition-colors duration-300 overscroll-none">
