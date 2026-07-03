@@ -86,7 +86,9 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
         }
         
         const user = await getUserByEmail(trimmedEmail);
-        if (user) {
+        const isPasswordValid = user?.authProvider === 'google' || !user?.password || user?.password === trimmedPassword;
+        
+        if (user && isPasswordValid) {
           if (user.role === 'superadmin') {
              onLogin(user);
              return;
@@ -131,12 +133,6 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
           setError('Email already exists.');
           return;
         }
-        
-        const DEVICE_FINGERPRINT_KEY = 'stratify_device_registered';
-        if (localStorage.getItem(DEVICE_FINGERPRINT_KEY) && !isGoogleReg) {
-          setError('Registration limit reached for this device.');
-          return;
-        }
 
         const tenantId = 't-' + Date.now();
         const trialEndsAt = new Date();
@@ -163,13 +159,13 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
           name: trimmedEmail.split('@')[0],
           role: 'tenant_owner',
           tenantId,
-          authProvider: isGoogleReg ? 'google' : 'email'
+          authProvider: isGoogleReg ? 'google' : 'email',
+          password: !isGoogleReg ? trimmedPassword : undefined
         };
 
         await syncTenantToFirebase(newTenant);
         await syncUserToFirebase(newUser);
 
-        localStorage.setItem(DEVICE_FINGERPRINT_KEY, 'true');
         onLogin(newUser, newTenant);
       }
     } catch (err: any) {
@@ -184,10 +180,10 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-5xl bg-white dark:bg-zinc-900 rounded-[2rem] shadow-2xl overflow-hidden border border-blue-100 dark:border-blue-900/30 flex flex-col md:flex-row min-h-[700px]"
+        className="w-full max-w-5xl bg-gradient-to-br from-white to-blue-50 dark:from-zinc-900 dark:to-blue-950/30 rounded-[2rem] shadow-2xl overflow-hidden border border-blue-100 dark:border-blue-900/30 flex flex-col md:flex-row min-h-[700px]"
       >
         {/* Left Side: Brand & Hero (Desktop Only) */}
-        <div className="hidden md:flex md:w-5/12 bg-zinc-950 p-12 flex-col justify-between relative overflow-hidden">
+        <div className="hidden md:flex md:w-5/12 bg-gradient-to-br from-blue-700 to-blue-900 p-12 flex-col justify-between relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-transparent to-indigo-600/20 pointer-events-none" />
           <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl" />
@@ -234,7 +230,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
 
         {/* Right Side: Auth Form */}
         <div className="flex-1 flex flex-col h-full overflow-hidden">
-          <div className="p-8 md:p-12 text-center md:text-left md:hidden bg-zinc-950 border-b border-white/5 shrink-0">
+          <div className="p-8 md:p-12 text-center md:text-left md:hidden bg-gradient-to-br from-blue-700 to-blue-900 border-b border-white/5 shrink-0">
             <img 
               src="https://i.postimg.cc/5yGwSWWR/1782659487700.png" 
               alt="STRATIFY Logo" 
@@ -244,7 +240,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
             <p className="text-blue-500 text-[10px] font-black tracking-widest uppercase">Strategy + Simplify</p>
           </div>
 
-          <div className="flex-1 p-8 md:p-16 overflow-y-auto custom-scrollbar bg-white dark:bg-zinc-900">
+          <div className="flex-1 p-8 md:p-16 overflow-y-auto custom-scrollbar bg-transparent">
             <div className="max-w-md mx-auto">
               <div className="mb-10">
                 <h3 className="text-2xl font-black text-zinc-900 dark:text-white mb-2">
@@ -255,7 +251,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                 </p>
               </div>
 
-              <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl mb-8">
+              <div className="flex p-1 bg-blue-500/5 dark:bg-zinc-800/50 rounded-2xl mb-8">
                 <button 
                   onClick={() => { setIsLogin(true); setError(''); }}
                   className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${isLogin ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
@@ -303,7 +299,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                             required
                             value={companyName}
                             onChange={e => setCompanyName(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                            className="w-full pl-12 pr-4 py-3.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
                             placeholder="e.g. Acme Corporation"
                           />
                         </div>
@@ -320,14 +316,14 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                               required
                               value={tin}
                               onChange={e => setTin(e.target.value)}
-                              className="w-full pl-12 pr-4 py-3.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                              className="w-full pl-12 pr-4 py-3.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
                               placeholder="000-000-000"
                             />
                           </div>
                         </div>
                         <div>
                           <label className="block text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">Users</label>
-                          <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-2 py-1.5">
+                          <div className="flex items-center gap-2 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl px-2 py-1.5">
                             <button
                               type="button"
                               onClick={() => setUserLimit(prev => Math.max(1, prev - 1))}
@@ -357,7 +353,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                             required
                             value={address}
                             onChange={e => setAddress(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                            className="w-full pl-12 pr-4 py-3.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
                             placeholder="Complete Business Address"
                           />
                         </div>
@@ -384,7 +380,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                       required
                       value={email}
                       onChange={e => setEmail(e.target.value)}
-                      className="w-full pl-12 pr-4 py-3.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                      className="w-full pl-12 pr-4 py-3.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
                       placeholder="name@company.com"
                     />
                   </div>
@@ -394,9 +390,6 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="block text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Password</label>
-                      {isLogin && (
-                        <button type="button" className="text-[10px] font-black text-blue-600 hover:text-blue-500 uppercase tracking-widest">Forgot?</button>
-                      )}
                     </div>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -407,7 +400,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                         required={!isGoogleReg}
                         value={password}
                         onChange={e => setPassword(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                        className="w-full pl-12 pr-4 py-3.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
                         placeholder="••••••••"
                       />
                     </div>
@@ -417,7 +410,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                 <button 
                   type="submit" 
                   disabled={isSubmitting}
-                  className="w-full mt-4 py-4 bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 rounded-[1.25rem] text-sm font-black flex items-center justify-center gap-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-zinc-950/10 dark:shadow-white/5"
+                  className="w-full mt-4 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-[1.25rem] text-sm font-black flex items-center justify-center gap-3 hover:from-blue-700 hover:to-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-zinc-950/10 dark:shadow-white/5"
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -441,7 +434,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                   type="button"
                   onClick={handleGoogleAuth}
                   disabled={isSubmitting}
-                  className="w-full py-4 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded-[1.25rem] text-xs font-black flex items-center justify-center gap-3 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
+                  className="w-full py-4 bg-white/50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-blue-100 dark:border-zinc-700 backdrop-blur-sm rounded-[1.25rem] text-xs font-black flex items-center justify-center gap-3 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-5 h-5 animate-spin" />

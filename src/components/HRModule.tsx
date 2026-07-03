@@ -131,7 +131,7 @@ export const HRModule: React.FC<HRModuleProps> = ({ showToast }) => {
             <button onClick={() => setActiveTab('Leaves')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === 'Leaves' ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'}`}>Leave Management</button>
             <button onClick={() => setActiveTab('Performance')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === 'Performance' ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'}`}>Performance</button>
             <button onClick={() => setActiveTab('Documents')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === 'Documents' ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'}`}>Documents</button>
-            <button onClick={() => setActiveTab('Enterprise')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === 'Enterprise' ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'}`}>Enterprise Features</button>
+            
           </div>
           {activeTab === 'Directory' && (
             <button
@@ -211,9 +211,7 @@ export const HRModule: React.FC<HRModuleProps> = ({ showToast }) => {
         <div className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm flex flex-col min-h-0 overflow-hidden">
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex justify-between items-center">
             <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Daily Time Records</h3>
-            <button className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors">
-              + Log Time
-            </button>
+            
           </div>
           <div className="flex-1 overflow-x-auto p-4">
             {timeLogs.length === 0 ? (
@@ -270,9 +268,7 @@ export const HRModule: React.FC<HRModuleProps> = ({ showToast }) => {
         <div className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm flex flex-col min-h-0 overflow-hidden">
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex justify-between items-center">
             <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Leave Requests</h3>
-            <button className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors">
-              + File Leave
-            </button>
+            
           </div>
           <div className="flex-1 overflow-x-auto p-4">
             {leaveRequests.length === 0 ? (
@@ -356,9 +352,7 @@ export const HRModule: React.FC<HRModuleProps> = ({ showToast }) => {
         <div className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm flex flex-col min-h-0 overflow-hidden">
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex justify-between items-center">
             <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Performance Evaluations</h3>
-            <button className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors">
-              + New Evaluation
-            </button>
+            
           </div>
           <div className="flex-1 overflow-x-auto p-4 flex flex-col items-center justify-center text-zinc-400">
             <p>No performance records found.</p>
@@ -371,9 +365,7 @@ export const HRModule: React.FC<HRModuleProps> = ({ showToast }) => {
         <div className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm flex flex-col min-h-0 overflow-hidden">
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex justify-between items-center">
             <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Document Repository</h3>
-            <button className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors">
-              + Upload Document
-            </button>
+            
           </div>
           <div className="flex-1 overflow-x-auto p-4 flex flex-col items-center justify-center text-zinc-400">
             <p>No documents found.</p>

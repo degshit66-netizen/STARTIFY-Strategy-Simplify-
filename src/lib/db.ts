@@ -147,7 +147,9 @@ export const loadStorageFromFirebase = async (tenantId: string) => {
 
 export const syncTenantToFirebase = async (tenant: Tenant) => {
   try {
-    await setDoc(doc(db, 'tenants', tenant.id), tenant);
+    
+    const cleanTenant = Object.fromEntries(Object.entries(tenant).filter(([_, v]) => v !== undefined));
+    await setDoc(doc(db, 'tenants', tenant.id), cleanTenant);
   } catch (e) {
     console.error('Error syncing tenant:', e);
   }
@@ -155,9 +157,20 @@ export const syncTenantToFirebase = async (tenant: Tenant) => {
 
 export const syncUserToFirebase = async (user: User) => {
   try {
-    await setDoc(doc(db, 'users', user.id), user);
+    
+    const cleanUser = Object.fromEntries(Object.entries(user).filter(([_, v]) => v !== undefined));
+    await setDoc(doc(db, 'users', user.id), cleanUser);
   } catch (e) {
     console.error('Error syncing user:', e);
+  }
+};
+
+
+export const deleteUserFromFirebase = async (userId: string) => {
+  try {
+    await deleteDoc(doc(db, 'users', userId));
+  } catch (e) {
+    console.error('Error deleting user:', e);
   }
 };
 

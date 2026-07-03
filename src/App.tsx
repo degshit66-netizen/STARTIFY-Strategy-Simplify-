@@ -117,8 +117,7 @@ export default function App() {
   const [announcements, setAnnouncements] = useState<SystemAnnouncement[]>([]);
   const [isInitializing, setIsInitializing] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>('Dashboard');
-  const [isViewingAsAdmin, setIsViewingAsAdmin] = useState(false);
-  const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+    const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [isEntryOpen, setIsEntryOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [entryModalType, setEntryModalType] = useState<'Sales' | 'Expense'>('Sales');
@@ -351,29 +350,53 @@ export default function App() {
     }
   }, [users]);
 
-  const handleLogin = (user: User, tenant?: Tenant) => {
+  const handleLogin = async (user: User, tenant?: Tenant) => {
     localStorage.setItem('current_user_id', user.id);
+    setCurrentUser(user);
+
+    setUsers(prev => {
+      if (!prev.find(u => u.id === user.id)) {
+        const next = [...prev, user];
+        localStorage.setItem('mock_users', JSON.stringify(next));
+        return next;
+      }
+      return prev;
+    });
+
     if (tenant) {
       localStorage.setItem('current_tenant_id', tenant.id);
+      setCurrentTenant(tenant);
+
+      setTenants(prev => {
+        if (!prev.find(t => t.id === tenant.id)) {
+          const next = [...prev, tenant];
+          localStorage.setItem('mock_tenants', JSON.stringify(next));
+          return next;
+        }
+        return prev;
+      });
+
+      await loadStorageFromFirebase(tenant.id);
       
       const isFirstLogin = !localStorage.getItem(`onboarded_${user.id}_${tenant.id}`);
       if (isFirstLogin) {
         localStorage.setItem(`onboarded_${user.id}_${tenant.id}`, 'true');
-        localStorage.setItem('show_onboarding_pending', 'true');
+        setShowOnboarding(true);
       }
     }
-    window.location.reload();
   };
 
   const handleLogout = () => {
     if (currentTenant) {
-      // Mark as offline and save immediately before reload
       const updatedTenants = tenants.map(t => t.id === currentTenant.id ? { ...t, isOnline: false } : t);
+      setTenants(updatedTenants);
       localStorage.setItem('mock_tenants', JSON.stringify(updatedTenants));
     }
     localStorage.removeItem('current_user_id');
     localStorage.removeItem('current_tenant_id');
-    window.location.reload();
+    setCurrentUser(null);
+    setCurrentTenant(null);
+    setLedger([]);
   };
 
 
@@ -690,20 +713,13 @@ export default function App() {
     );
   }
 
-  if (currentUser.role === 'superadmin' && !isViewingAsAdmin) {
+  if (currentUser.role === 'superadmin') {
     return (
       <SuperAdminDashboard 
         tenants={tenants}
         setTenants={setTenants}
         users={users}
         onLogout={handleLogout}
-        onSelectTenant={async (tenant) => {
-          setCurrentTenant(tenant);
-          setIsViewingAsAdmin(true);
-          localStorage.setItem('current_tenant_id', tenant.id);
-          await loadStorageFromFirebase(tenant.id);
-          showToast(`Now managing ${tenant.name} workspace as Super Admin.`, 'info');
-        }}
       />
     );
   }
@@ -752,15 +768,7 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2 md:gap-4">
-          {currentUser.role === 'superadmin' && (
-            <button 
-              onClick={() => setIsViewingAsAdmin(false)}
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md shadow-rose-900/20 ring-2 ring-rose-500/50"
-            >
-              <ShieldAlert className="w-3.5 h-3.5" />
-              Exit Admin Session
-            </button>
-          )}
+          
 
           {/* Quick Year Filter - Hidden on small mobile */}
           <div className="hidden sm:flex items-center gap-1 bg-white/10 border border-white/20 rounded-xl px-2.5 py-1">

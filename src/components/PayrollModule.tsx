@@ -203,7 +203,7 @@ export const PayrollModule: React.FC<PayrollModuleProps> = ({ handleSaveEntry, s
           <div className="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl">
             <button onClick={() => setActiveTab('Runs')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === 'Runs' ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'}`}>Current Runs</button>
             <button onClick={() => setActiveTab('History')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === 'History' ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'}`}>History</button>
-            <button onClick={() => setActiveTab('Advanced')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === 'Advanced' ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'}`}>Enterprise Features</button>
+            
           </div>
           <button
             onClick={openGenerator}
@@ -296,131 +296,7 @@ export const PayrollModule: React.FC<PayrollModuleProps> = ({ handleSaveEntry, s
         </div>
       )}
 
-      {activeTab === 'Advanced' && (
-        <div className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-y-auto">
-          <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex justify-between items-center sticky top-0 z-10">
-            <div>
-              <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Enterprise Payroll System</h3>
-              <p className="text-xs text-zinc-500">Comprehensive capabilities for scaling your payroll operations.</p>
-            </div>
-            <button onClick={() => showToast('Upgrading to Enterprise Edition...', 'info')} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20">
-              Upgrade System
-            </button>
-          </div>
-          
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* 4. Payroll Computation */}
-            <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 bg-zinc-50 dark:bg-zinc-950/50 flex flex-col hover:border-blue-500/50 transition-colors">
-              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-lg flex items-center justify-center mb-3">
-                <Calculator className="w-5 h-5" />
-              </div>
-              <h4 className="font-bold text-zinc-900 dark:text-zinc-100 mb-1">4. Payroll Computation & Disbursement</h4>
-              <ul className="text-xs text-zinc-500 space-y-1.5 flex-1 mb-4">
-                <li className="flex items-start gap-1.5"><div className="w-1 h-1 rounded-full bg-blue-400 mt-1.5 shrink-0" /> Gross to Net Formula with Allowances/OT/ND</li>
-                <li className="flex items-start gap-1.5"><div className="w-1 h-1 rounded-full bg-blue-400 mt-1.5 shrink-0" /> Gov't Tables Lookup (SSS, PhilHealth, Pag-IBIG)</li>
-                <li className="flex items-start gap-1.5"><div className="w-1 h-1 rounded-full bg-blue-400 mt-1.5 shrink-0" /> Automated Withholding Tax (BIR) computation</li>
-                <li className="flex items-start gap-1.5"><div className="w-1 h-1 rounded-full bg-blue-400 mt-1.5 shrink-0" /> Lock Period (Finalized runs cannot be edited)</li>
-                <li className="flex items-start gap-1.5"><div className="w-1 h-1 rounded-full bg-blue-400 mt-1.5 shrink-0" /> Bank Batch Files (BDO/BPI Direct Deposit)</li>
-              </ul>
-              <button onClick={() => showToast('Opening Payroll Engine Configuration...', 'info')} className="text-left text-xs font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400">Configure Payroll Engine →</button>
-            </div>
-
-            {/* 5. Loans & Advances */}
-            <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 bg-zinc-50 dark:bg-zinc-950/50 flex flex-col hover:border-blue-500/50 transition-colors">
-              <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-lg flex items-center justify-center mb-3">
-                <Banknote className="w-5 h-5" />
-              </div>
-              <h4 className="font-bold text-zinc-900 dark:text-zinc-100 mb-1">5. Loans & Advances Management</h4>
-              <ul className="text-xs text-zinc-500 space-y-1.5 flex-1 mb-4">
-                <li className="flex items-start gap-1.5"><div className="w-1 h-1 rounded-full bg-emerald-400 mt-1.5 shrink-0" /> Scheduled Amortizations (Total, Monthly, Dates)</li>
-                <li className="flex items-start gap-1.5"><div className="w-1 h-1 rounded-full bg-emerald-400 mt-1.5 shrink-0" /> Auto-Deduct per cut-off until fully paid</li>
-                <li className="flex items-start gap-1.5"><div className="w-1 h-1 rounded-full bg-emerald-400 mt-1.5 shrink-0" /> Stop/Pause Logic (e.g. during LWOP)</li>
-              </ul>
-              <button onClick={() => showToast('Opening Loans Management...', 'info')} className="text-left text-xs font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400">Manage Loans →</button>
-            </div>
-            
-          </div>
-        </div>
-      )}
-
-      {activeTab !== 'Advanced' && !isGeneratorOpen && runs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 text-center bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800">
-          <FileText className="w-12 h-12 text-zinc-400 mb-4" />
-          <h3 className="text-lg font-bold text-zinc-700 dark:text-zinc-300">No Payroll Runs</h3>
-          <p className="text-sm text-zinc-500 max-w-md mt-2">Draft your first payroll run based on active employees in HR.</p>
-        </div>
-      ) : (
-        <div className="flex-1 overflow-y-auto space-y-6">
-          {runs.filter(r => activeTab === 'Runs' ? r.status === 'Draft' : r.status === 'Posted').map((run) => (
-            <div key={run.id} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden">
-              <div className="p-4 bg-zinc-50 dark:bg-zinc-950/50 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center">
-                <div>
-                  <h3 className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                    {run.periodMonth} {run.periodType}, {run.periodYear} <span className="text-zinc-400 text-xs font-normal">({run.id})</span>
-                  </h3>
-                  <p className="text-xs text-zinc-500 mt-1">Generated: {run.date} &bull; {run.payslips.length} Employees</p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Total Net Payout</p>
-                    <p className="font-bold text-lg text-emerald-600">{formatCurrency(run.totalNet.toString())}</p>
-                  </div>
-                  {run.status === 'Draft' ? (
-                    <button
-                      onClick={() => processRun(run.id)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-2 hover:bg-blue-700"
-                    >
-                      <DollarSign className="w-4 h-4" /> Post to Ledger
-                    </button>
-                  ) : (
-                    <span className="px-3 py-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1">
-                      <CheckCircle className="w-3.5 h-3.5" /> Posted
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-zinc-50 dark:bg-zinc-950/20 border-b border-zinc-100 dark:border-zinc-800 text-zinc-500 font-bold uppercase tracking-wider">
-                      <th className="px-4 py-2">Employee</th>
-                      <th className="px-4 py-2 text-right">Basic Pay</th>
-                      <th className="px-4 py-2 text-right text-emerald-600">OT/Alw</th>
-                      <th className="px-4 py-2 text-right text-red-500">Vale/Lates</th>
-                      <th className="px-4 py-2 text-right text-red-500">Statutory</th>
-                      <th className="px-4 py-2 text-right">Net Pay</th>
-                      <th className="px-4 py-2 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                    {run.payslips.map(ps => (
-                      <tr key={ps.employeeId} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/10">
-                        <td className="px-4 py-2 font-medium text-zinc-900 dark:text-zinc-100">{ps.name}</td>
-                        <td className="px-4 py-2 text-right">{formatCurrency(ps.basic.toString())}</td>
-                        <td className="px-4 py-2 text-right text-emerald-600">+{formatCurrency((ps.ot + ps.allowance).toString())}</td>
-                        <td className="px-4 py-2 text-right text-red-500">-{formatCurrency((ps.vale + ps.lates).toString())}</td>
-                        <td className="px-4 py-2 text-right text-red-500">-{formatCurrency((ps.sss + ps.philHealth + ps.pagIbig).toString())}</td>
-                        <td className="px-4 py-2 text-right font-bold text-emerald-600">{formatCurrency(ps.net.toString())}</td>
-                        <td className="px-4 py-2 text-center">
-                          <button onClick={() => window.print()} className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded font-bold text-[10px] hover:bg-zinc-200 dark:hover:bg-zinc-700">
-                            Print Payslip
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))}
-          {activeTab !== 'Advanced' && runs.filter(r => activeTab === 'Runs' ? r.status === 'Draft' : r.status === 'Posted').length === 0 && !isGeneratorOpen && runs.length > 0 && (
-            <div className="p-8 text-center text-zinc-500 text-sm">
-              No payroll runs found in this category.
-            </div>
-          )}
-        </div>
-      )}
+      
     </div>
   );
 };

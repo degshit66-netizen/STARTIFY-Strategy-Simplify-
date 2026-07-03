@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, CheckCircle, ShieldAlert, Award, FileText, UserPlus, Trash2, Mail, User, Shield, Upload, Laptop, Smartphone, Tablet, DownloadCloud, Globe, RefreshCw, BookOpen } from 'lucide-react';
+import { deleteUserFromFirebase } from '../lib/db';
 import { CompanyConfig, Tenant, User as SystemUser, LedgerEntry } from '../types';
 
 interface SettingsModalProps {
@@ -184,12 +185,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
 
-    if (!confirm(`Are you sure you want to remove ${userToDelete.name || userToDelete.email} from the team?`)) {
-      return;
-    }
+    
 
     if (setUsers) {
       setUsers(prev => prev.filter(u => u.id !== userId));
+      deleteUserFromFirebase(userId).catch(console.error);
       showToast('Team member removed successfully.', 'success');
     }
   };
@@ -287,8 +287,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           showToast(`Successfully merged ${parsed.length} entries!`, 'success');
         } else {
           // Overwrite
-          const doubleCheck = confirm('Are you sure you want to OVERWRITE the entire database? This cannot be undone.');
-          if (!doubleCheck) return;
+          
           finalLedger = parsed;
           showToast(`Successfully restored ${parsed.length} entries!`, 'success');
         }
@@ -659,9 +658,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               {u.role?.replace('tenant_admin', 'Admin').replace('tenant_owner', 'Owner')}
                             </span>
                             {u.role !== 'tenant_owner' && (
-                              <button 
-                                onClick={() => handleDeleteMember(u.id)}
-                                className="p-1.5 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-lg"
+                              <button type="button" onClick={() => handleDeleteMember(u.id)}
+                                className="p-3 sm:p-1.5 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-lg"
                                 title="Remove team member"
                               >
                                 <Trash2 className="w-4 h-4" />

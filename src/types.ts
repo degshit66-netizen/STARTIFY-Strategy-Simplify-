@@ -41,6 +41,7 @@ export interface User {
   tenantId?: string;
   name: string;
   authProvider?: 'google' | 'email';
+  password?: string;
 }
 
 export interface LedgerEntry {

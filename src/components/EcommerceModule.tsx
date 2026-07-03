@@ -187,7 +187,7 @@ export const EcommerceModule: React.FC<EcommerceModuleProps> = ({ handleSaveEntr
           <button onClick={() => setActiveTab('POS')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === 'POS' ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'}`}>New Order (POS)</button>
           <button onClick={() => setActiveTab('Orders')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === 'Orders' ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'}`}>Online Orders</button>
           <button onClick={() => setActiveTab('Settings')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === 'Settings' ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'}`}>Integration Settings</button>
-          <button onClick={() => setActiveTab('Enterprise')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === 'Enterprise' ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'}`}>Enterprise Features</button>
+          
         </div>
       </div>
       
