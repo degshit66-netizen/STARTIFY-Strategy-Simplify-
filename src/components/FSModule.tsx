@@ -382,7 +382,8 @@ export const FSModule: React.FC<FSModuleProps> = ({
             <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mt-1">Statement of Comprehensive Income</h3>
             <p className="text-xs text-zinc-400 italic mt-0.5">{periodText}</p>
           </div>
-          <table className="w-full text-xs sm:text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b-2 border-zinc-800 dark:border-zinc-200 text-left font-bold text-zinc-700 dark:text-zinc-300">
                 <th className="py-2">Accounts / Category</th>
@@ -432,6 +433,7 @@ export const FSModule: React.FC<FSModuleProps> = ({
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* STATEMENT OF EQUITIES */}
@@ -441,7 +443,8 @@ export const FSModule: React.FC<FSModuleProps> = ({
             <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mt-1">Statement of Changes in Equity</h3>
             <p className="text-xs text-zinc-400 italic mt-0.5">{periodText}</p>
           </div>
-          <table className="w-full text-xs sm:text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b-2 border-zinc-800 dark:border-zinc-200 text-left font-bold text-zinc-700 dark:text-zinc-300">
                 <th className="py-2">Description</th>
@@ -471,6 +474,7 @@ export const FSModule: React.FC<FSModuleProps> = ({
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* STATEMENT OF FINANCIAL POSITIONS */}
@@ -480,7 +484,8 @@ export const FSModule: React.FC<FSModuleProps> = ({
             <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mt-1">Statement of Financial Position</h3>
             <p className="text-xs text-zinc-400 italic mt-0.5">{bsPeriodText}</p>
           </div>
-          <table className="w-full text-xs sm:text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b-2 border-zinc-800 dark:border-zinc-200 text-left font-bold text-zinc-700 dark:text-zinc-300">
                 <th className="py-2">Accounts / Category</th>
@@ -548,6 +553,7 @@ export const FSModule: React.FC<FSModuleProps> = ({
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* STATEMENT OF CASH FLOWS */}
@@ -557,7 +563,8 @@ export const FSModule: React.FC<FSModuleProps> = ({
             <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mt-1">Statement of Cash Flows</h3>
             <p className="text-xs text-zinc-400 italic mt-0.5">{periodText}</p>
           </div>
-          <table className="w-full text-xs sm:text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b-2 border-zinc-800 dark:border-zinc-200 text-left font-bold text-zinc-700 dark:text-zinc-300">
                 <th className="py-2">Description</th>
@@ -619,6 +626,7 @@ export const FSModule: React.FC<FSModuleProps> = ({
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* UNADJUSTED TRIAL BALANCE */}
@@ -628,7 +636,8 @@ export const FSModule: React.FC<FSModuleProps> = ({
             <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mt-1">Unadjusted Trial Balance</h3>
             <p className="text-xs text-zinc-400 italic mt-0.5">{bsPeriodText}</p>
           </div>
-          <table className="w-full text-xs sm:text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b-2 border-zinc-800 dark:border-zinc-200 text-left font-bold text-zinc-700 dark:text-zinc-300">
                 <th className="py-2">Account Title</th>
@@ -657,6 +666,7 @@ export const FSModule: React.FC<FSModuleProps> = ({
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* NOTES */}

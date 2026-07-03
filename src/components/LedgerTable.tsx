@@ -373,8 +373,8 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
         )}
 
         {/* 3 Ledger Subtabs Bar */}
-        <div className="border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/40 dark:bg-zinc-950/20 px-5 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/30">
+        <div className="border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/40 dark:bg-zinc-950/20 px-5 py-3 flex items-center justify-between gap-4 overflow-hidden">
+          <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/30 overflow-x-auto no-scrollbar whitespace-nowrap">
             <button
               onClick={() => setSubTab('all')}
               className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${

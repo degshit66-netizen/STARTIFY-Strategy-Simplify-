@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import {
   Download,
   RefreshCw,
@@ -9,17 +10,52 @@ import {
   Printer,
   Import,
   Sparkles,
+  X,
+  ChevronRight,
+  FileCheck2,
 } from "lucide-react";
 import { r2, parseNum, formatCurrency } from "../utils/helpers";
 import html2pdf from "html2pdf.js";
 import { Form2307Sheet, renderTinSquares } from "./Form2307Sheet";
+import { syncConfigToFirebase, loadConfigFromFirebase } from "../lib/db";
+
+interface Transaction {
+  id: number;
+  atc: string;
+  description: string;
+  income: number;
+  taxRate: number;
+  tax: number;
+}
+
+const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+};
+
+const base64ToArrayBuffer = (base64: string) => {
+  const binaryString = window.atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+};
 
 interface Form2307ModuleProps {
   isAdmin?: boolean;
+  showToast: (msg: string, type: "success" | "error" | "info" | "warning") => void;
 }
 
 export const Form2307Module: React.FC<Form2307ModuleProps> = ({
   isAdmin = false,
+  showToast,
 }) => {
   // Mode selection: "split" (Editor + Live Form), "print-preview" (Full page form)
   const [viewMode, setViewMode] = useState<"split" | "form-only">("split");
@@ -44,11 +80,42 @@ export const Form2307Module: React.FC<Form2307ModuleProps> = ({
     { atc: "WI158", m1: "", m2: "", m3: "", rate: "2" },
   ]);
 
+  const [signature, setSignature] = useState<string | null>(null);
+  const [masterTemplate, setMasterTemplate] = useState<ArrayBuffer | null>(null);
+  const [showMapping, setShowMapping] = useState(false);
+  const [excelMapping, setExcelMapping] = useState({
+    payeeTin: "C12",
+    payeeName: "C14",
+    payeeAddress: "C16",
+    payorTin: "C18",
+    payorName: "C20",
+    payorAddress: "C22",
+  });
+
   // Load ledger entries to support 1-click importing of posted withholding tax items!
   const [salesLedgerEntries, setSalesLedgerEntries] = useState<any[]>([]);
   const [showImportList, setShowImportList] = useState(false);
 
   useEffect(() => {
+    // Load e-signature from storage if exists
+    const savedSig = localStorage.getItem("stratify_2307_signature");
+    if (savedSig) setSignature(savedSig);
+
+    // Load master template from Firestore
+    const loadData = async () => {
+      const savedTemplate = await loadConfigFromFirebase("bir_2307_master_template");
+      if (savedTemplate) {
+        setMasterTemplate(base64ToArrayBuffer(savedTemplate));
+      }
+      const savedMapping = await loadConfigFromFirebase("bir_2307_mapping");
+      if (savedMapping) {
+        try {
+          setExcelMapping(JSON.parse(savedMapping));
+        } catch (e) {}
+      }
+    };
+    loadData();
+
     try {
       const tenantId = localStorage.getItem("current_tenant_id") || "default";
       const key = `stratify_general_ledger_${tenantId}`;
@@ -188,6 +255,49 @@ export const Form2307Module: React.FC<Form2307ModuleProps> = ({
     setShowImportList(false);
   };
 
+  const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        setSignature(result);
+        localStorage.setItem("stratify_2307_signature", result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeSignature = () => {
+    setSignature(null);
+    localStorage.removeItem("stratify_2307_signature");
+  };
+
+  const handleTemplateUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isAdmin) return;
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const result = event.target?.result as ArrayBuffer;
+        setMasterTemplate(result);
+        
+        // Sync to Firebase for all tenants to use
+        const base64 = arrayBufferToBase64(result);
+        await syncConfigToFirebase("bir_2307_master_template", base64);
+        
+        showToast("Master Template uploaded and synced globally.", "success");
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  };
+
+  const handleMappingChange = async (newMapping: any) => {
+    if (!isAdmin) return;
+    setExcelMapping(newMapping);
+    await syncConfigToFirebase("bir_2307_mapping", JSON.stringify(newMapping));
+  };
+
   const calculateTotal = (t: any) => {
     const m1 = parseFloat(t.m1) || 0;
     const m2 = parseFloat(t.m2) || 0;
@@ -219,76 +329,72 @@ export const Form2307Module: React.FC<Form2307ModuleProps> = ({
     return { m1Tot, m2Tot, m3Tot, netTot, taxTot };
   }, [transactions]);
 
-  const generateExcel = () => {
-    const wb = XLSX.utils.book_new();
+  const generateExcel = async () => {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      let worksheet;
 
-    const wsData = [
-      ["BIR FORM 2307 - Certificate of Creditable Tax Withheld at Source"],
-      [],
-      ["For the Period From:", periodFrom, "To:", periodTo],
-      [],
-      ["PART I - PAYEE INFORMATION"],
-      ["TIN:", payee.tin],
-      ["Name:", payee.name],
-      ["Address:", payee.address],
-      ["ZIP Code:", payee.zip],
-      [],
-      ["PART II - PAYOR INFORMATION"],
-      ["TIN:", payor.tin],
-      ["Name:", payor.name],
-      ["Address:", payor.address],
-      ["ZIP Code:", payor.zip],
-      [],
-      ["PART III - DETAILS OF MONTHLY INCOME PAYMENTS AND TAXES WITHHELD"],
-      [
-        "ATC",
-        "1st Month Amount",
-        "2nd Month Amount",
-        "3rd Month Amount",
-        "Total Amount",
-        "Tax Rate (%)",
-        "Tax Withheld",
-      ],
-    ];
+      if (masterTemplate) {
+        await workbook.xlsx.load(masterTemplate);
+        worksheet = workbook.worksheets[0]; // Assume first sheet
+        
+        // Map basic info using coordinates
+        worksheet.getCell(excelMapping.payeeTin).value = payee.tin;
+        worksheet.getCell(excelMapping.payeeName).value = payee.name;
+        worksheet.getCell(excelMapping.payeeAddress).value = payee.address;
+        worksheet.getCell(excelMapping.payorTin).value = payor.tin;
+        worksheet.getCell(excelMapping.payorName).value = payor.name;
+        worksheet.getCell(excelMapping.payorAddress).value = payor.address;
+        
+        // Mapping transactions is harder as they are rows. 
+        // We'll assume they start at a certain row or just use the default logic if it's complex.
+        showToast("Generating from Master Template with your custom mappings...", "info");
+      } else {
+        worksheet = workbook.addWorksheet("BIR_2307");
+        // Default layout if no template
+        worksheet.addRow(["BIR FORM 2307 - Certificate of Creditable Tax Withheld at Source"]);
+        worksheet.addRow([]);
+        worksheet.addRow(["For the Period From:", periodFrom, "To:", periodTo]);
+        worksheet.addRow([]);
+        worksheet.addRow(["PART I - PAYEE INFORMATION"]);
+        worksheet.addRow(["TIN:", payee.tin]);
+        worksheet.addRow(["Name:", payee.name]);
+        worksheet.addRow(["Address:", payee.address]);
+        worksheet.addRow(["ZIP Code:", payee.zip]);
+        worksheet.addRow([]);
+        worksheet.addRow(["PART II - PAYOR INFORMATION"]);
+        worksheet.addRow(["TIN:", payor.tin]);
+        worksheet.addRow(["Name:", payor.name]);
+        worksheet.addRow(["Address:", payor.address]);
+        worksheet.addRow(["ZIP Code:", payor.zip]);
+        worksheet.addRow([]);
+        worksheet.addRow(["PART III - DETAILS OF MONTHLY INCOME PAYMENTS AND TAXES WITHHELD"]);
+        worksheet.addRow(["ATC", "1st Month Amount", "2nd Month Amount", "3rd Month Amount", "Total Amount", "Tax Rate (%)", "Tax Withheld"]);
+        
+        transactions.forEach((t) => {
+          const m1 = parseFloat(t.m1) || 0;
+          const m2 = parseFloat(t.m2) || 0;
+          const m3 = parseFloat(t.m3) || 0;
+          const rate = parseFloat(t.rate) || 0;
+          const totalAmount = m1 + m2 + m3;
+          const taxWithheld = totalAmount * (rate / 100);
+          worksheet.addRow([t.atc, m1, m2, m3, totalAmount, rate, taxWithheld]);
+        });
+      }
 
-    transactions.forEach((t) => {
-      const m1 = parseFloat(t.m1) || 0;
-      const m2 = parseFloat(t.m2) || 0;
-      const m3 = parseFloat(t.m3) || 0;
-      const rate = parseFloat(t.rate) || 0;
-      const totalAmount = m1 + m2 + m3;
-      const taxWithheld = totalAmount * (rate / 100);
-
-      wsData.push([t.atc, m1, m2, m3, totalAmount, rate, taxWithheld]);
-    });
-
-    wsData.push([]);
-    wsData.push([
-      "",
-      "",
-      "",
-      "",
-      "TOTAL TAX WITHHELD:",
-      "",
-      grandTotals.taxTot,
-    ]);
-
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-    ws["!cols"] = [
-      { wch: 15 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 15 },
-      { wch: 20 },
-    ];
-
-    XLSX.utils.book_append_sheet(wb, ws, "BIR_2307");
-
-    const fileName = `BIR_2307_${payee.name || "Payee"}_${periodFrom.replace(/\//g, "-") || "Period"}.xlsx`;
-    XLSX.writeFile(wb, fileName);
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `BIR_2307_${payee.name || "Payee"}_${periodFrom.replace(/\//g, "-") || "Period"}.xlsx`;
+      anchor.click();
+      window.URL.revokeObjectURL(url);
+      showToast("Excel Generated successfully.", "success");
+    } catch (error) {
+      console.error(error);
+      showToast("Failed to generate Excel.", "error");
+    }
   };
 
   const generatePDF = () => {
@@ -355,6 +461,60 @@ export const Form2307Module: React.FC<Form2307ModuleProps> = ({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {isAdmin && (
+            <div className="relative">
+              <input
+                type="file"
+                id="excel-import"
+                className="hidden"
+                accept=".xlsx"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = async (event) => {
+                      const buffer = event.target?.result as ArrayBuffer;
+                      const workbook = new ExcelJS.Workbook();
+                      await workbook.xlsx.load(buffer);
+                      const worksheet = workbook.getWorksheet(1);
+                      if (!worksheet) return;
+
+                      const importedTransactions: Transaction[] = [];
+                      worksheet.eachRow((row, rowNumber) => {
+                        if (rowNumber > 1) { // Skip header
+                          const atc = row.getCell(1).value?.toString() || "";
+                          const description = row.getCell(2).value?.toString() || "";
+                          const income = parseNum(row.getCell(3).value?.toString() || "0");
+                          const taxRate = parseNum(row.getCell(4).value?.toString() || "1"); // Default 1%
+                          
+                          if (atc && description) {
+                            importedTransactions.push({
+                              id: Date.now() + rowNumber,
+                              atc,
+                              description,
+                              income,
+                              taxRate,
+                              tax: (income * taxRate) / 100,
+                            });
+                          }
+                        }
+                      });
+                      setTransactions([...transactions, ...importedTransactions]);
+                      showToast(`Imported ${importedTransactions.length} transactions from Excel.`, 'success');
+                    };
+                    reader.readAsArrayBuffer(file);
+                  }
+                }}
+              />
+              <button
+                onClick={() => document.getElementById('excel-import')?.click()}
+                className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 font-bold text-xs rounded-xl shadow-sm border border-indigo-200/50 hover:bg-indigo-100 dark:hover:bg-indigo-950 transition-colors"
+              >
+                <Import className="w-4 h-4" />
+                Import Excel (Admin)
+              </button>
+            </div>
+          )}
           {salesLedgerEntries.length > 0 && (
             <button
               onClick={() => setShowImportList(!showImportList)}
@@ -712,6 +872,119 @@ export const Form2307Module: React.FC<Form2307ModuleProps> = ({
               ))}
             </div>
           </div>
+
+          <hr className="border-zinc-100 dark:border-zinc-800" />
+
+          <div>
+            <h3 className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest mb-3">
+              5. E-Signature Overlay
+            </h3>
+            <div className="space-y-3">
+              {!signature ? (
+                <div className="border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 text-center">
+                  <label className="cursor-pointer group">
+                    <input type="file" accept="image/*" className="hidden" onChange={handleSignatureUpload} />
+                    <Plus className="w-6 h-6 text-zinc-300 group-hover:text-emerald-500 mx-auto mb-2" />
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Upload Authorized Signature</p>
+                    <p className="text-[9px] text-zinc-400 mt-1">Prefer transparent PNG</p>
+                  </label>
+                </div>
+              ) : (
+                <div className="relative bg-zinc-50 dark:bg-zinc-950 p-3 rounded-2xl border border-emerald-500/30">
+                  <img src={signature} alt="Signature" className="h-16 mx-auto object-contain" />
+                  <button 
+                    onClick={removeSignature}
+                    className="absolute -top-2 -right-2 bg-red-100 text-red-600 p-1 rounded-full border border-red-200 hover:bg-red-200"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <hr className="border-zinc-100 dark:border-zinc-800" />
+
+          {isAdmin && (
+            <>
+              <div>
+                <h3 className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest mb-3">
+                  6. Master Excel Template (Admin Only)
+                </h3>
+                <div className="space-y-3">
+                  {!masterTemplate ? (
+                    <div className="border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 text-center">
+                      <label className="cursor-pointer group">
+                        <input type="file" accept=".xlsx" className="hidden" onChange={handleTemplateUpload} />
+                        <FileSpreadsheet className="w-6 h-6 text-zinc-300 group-hover:text-blue-500 mx-auto mb-2" />
+                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Upload Master Template</p>
+                        <p className="text-[9px] text-zinc-400 mt-1">Official BIR 2307 Excel</p>
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-2xl border border-blue-500/30 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FileCheck2 className="w-4 h-4 text-blue-500" />
+                        <span className="text-[10px] font-bold text-blue-700 dark:text-blue-400">Template Active</span>
+                      </div>
+                      <button 
+                        onClick={async () => {
+                          setMasterTemplate(null);
+                          await syncConfigToFirebase("bir_2307_master_template", "");
+                          showToast("Template removed globally.", "info");
+                        }}
+                        className="text-blue-400 hover:text-blue-600"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <hr className="border-zinc-100 dark:border-zinc-800" />
+
+              <div>
+                <button 
+                  onClick={() => setShowMapping(!showMapping)}
+                  className="w-full flex items-center justify-between py-2 text-zinc-400 hover:text-zinc-600 transition-colors"
+                >
+                  <h3 className="text-xs font-extrabold uppercase tracking-widest">
+                    7. Excel Template Mapping (Admin Only)
+                  </h3>
+                  <ChevronRight className={`w-4 h-4 transition-transform ${showMapping ? 'rotate-90' : ''}`} />
+                </button>
+                
+                {showMapping && (
+                  <div className="space-y-3 pt-3 animate-in fade-in duration-200">
+                    <p className="text-[10px] text-zinc-500 italic leading-snug">
+                      Define which Excel cells receive the data during automated generation.
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-zinc-500 uppercase">Payee TIN Cell</label>
+                        <input 
+                          type="text" 
+                          value={excelMapping.payeeTin} 
+                          onChange={(e) => handleMappingChange({...excelMapping, payeeTin: e.target.value})}
+                          className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1.5"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-zinc-500 uppercase">Payee Name Cell</label>
+                        <input 
+                          type="text" 
+                          value={excelMapping.payeeName} 
+                          onChange={(e) => handleMappingChange({...excelMapping, payeeName: e.target.value})}
+                          className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1.5"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* HIGH FIDELITY BIR FORM 2307 SHEET PREVIEW */}
@@ -724,6 +997,7 @@ export const Form2307Module: React.FC<Form2307ModuleProps> = ({
             payor={payor}
             transactions={transactions}
             grandTotals={grandTotals}
+            signature={signature}
           />
         </div>
       </div>

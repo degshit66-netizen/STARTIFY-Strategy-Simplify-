@@ -22,6 +22,8 @@ import {
   AlertCircle,
   Sun,
   Moon,
+  Menu,
+  X,
   Calculator,
   ShoppingCart,
   UsersRound,
@@ -35,7 +37,8 @@ import {
   Receipt,
   FileSpreadsheet,
   PieChart,
-  HardHat
+  HardHat,
+  ShieldAlert
 } from 'lucide-react';
 
 import { LedgerEntry, CompanyConfig, User, Tenant, SchedulerTask, SystemAnnouncement } from './types';
@@ -112,6 +115,7 @@ export default function App() {
   const [announcements, setAnnouncements] = useState<SystemAnnouncement[]>([]);
   const [isInitializing, setIsInitializing] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>('Dashboard');
+  const [isViewingAsAdmin, setIsViewingAsAdmin] = useState(false);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [isEntryOpen, setIsEntryOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -137,6 +141,7 @@ export default function App() {
   const [quarterFilter, setQuarterFilter] = useState('ALL');
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | undefined>(undefined);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // --- Custom Hooks ---
   const { isTrialExpired } = useTrialMonitor(currentTenant);
@@ -648,13 +653,20 @@ export default function App() {
     );
   }
 
-  if (currentUser.role === 'superadmin') {
+  if (currentUser.role === 'superadmin' && !isViewingAsAdmin) {
     return (
       <SuperAdminDashboard 
         tenants={tenants}
         setTenants={setTenants}
         users={users}
         onLogout={handleLogout}
+        onSelectTenant={async (tenant) => {
+          setCurrentTenant(tenant);
+          setIsViewingAsAdmin(true);
+          localStorage.setItem('current_tenant_id', tenant.id);
+          await loadStorageFromFirebase(tenant.id);
+          showToast(`Now managing ${tenant.name} workspace as Super Admin.`, 'info');
+        }}
       />
     );
   }
@@ -680,26 +692,41 @@ export default function App() {
       )}
       
       {/* HEADER SECTION (NO-PRINT) */}
-      <header className="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 border-b border-blue-900 text-white px-6 py-4 flex items-center justify-between no-print shadow-md shrink-0 z-30">
-        <div className="flex items-center gap-4">
+      <header className="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 border-b border-blue-900 text-white px-4 md:px-6 py-3 md:py-4 flex items-center justify-between no-print shadow-md shrink-0 z-40">
+        <div className="flex items-center gap-3 md:gap-4">
+          <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="md:hidden p-2 text-blue-200 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+          >
+            {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
           <img 
             src={currentTenant?.logo || companyConfig.logoUrl || 'https://i.postimg.cc/5yGwSWWR/1782659487700.png'} 
             alt="Logo" 
-            className="h-14 w-14 rounded-2xl object-cover shadow-md shrink-0"
+            className="h-10 w-10 md:h-14 md:w-14 rounded-xl md:rounded-2xl object-cover shadow-md shrink-0"
             onError={(e) => {
               (e.target as HTMLImageElement).src = 'https://i.postimg.cc/5yGwSWWR/1782659487700.png';
             }}
           />
           <div className="leading-tight">
-            <h1 className="text-xl font-display font-bold uppercase tracking-widest text-white">{currentTenant ? currentTenant.name : 'STRATIFY'}</h1>
-            <p className="text-xs font-semibold text-blue-200 tracking-wide">(Strategy + Simplify)</p>
-            <p className="text-[10px] text-yellow-400 font-bold uppercase tracking-widest mt-0.5">System Development</p>
+            <h1 className="text-base md:text-xl font-display font-bold uppercase tracking-widest text-white">{currentTenant ? currentTenant.name : 'STRATIFY'}</h1>
+            <p className="text-[10px] md:text-xs font-semibold text-blue-200 tracking-wide">(Strategy + Simplify)</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          {/* Quick Year Filter */}
-          <div className="flex items-center gap-1 bg-white/10 border border-white/20 rounded-xl px-2.5 py-1">
+        <div className="flex items-center gap-2 md:gap-4">
+          {currentUser.role === 'superadmin' && (
+            <button 
+              onClick={() => setIsViewingAsAdmin(false)}
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md shadow-rose-900/20 ring-2 ring-rose-500/50"
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              Exit Admin Session
+            </button>
+          )}
+
+          {/* Quick Year Filter - Hidden on small mobile */}
+          <div className="hidden sm:flex items-center gap-1 bg-white/10 border border-white/20 rounded-xl px-2.5 py-1">
             <span className="text-[10px] uppercase font-bold text-blue-200 px-1.5">FY:</span>
             <select 
               value={yearFilter} 
@@ -844,8 +871,20 @@ export default function App() {
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         
         {/* SIDEBAR NAVIGATION (NO-PRINT) */}
-        <aside className="w-full md:w-64 bg-gradient-to-b from-blue-950 via-indigo-950 to-blue-950 text-blue-100 border-r border-blue-900 no-print flex flex-col justify-between overflow-y-auto shrink-0 md:h-full overscroll-contain">
+        <aside className={`
+          fixed md:relative inset-0 md:inset-auto z-40 md:z-auto
+          w-64 bg-gradient-to-b from-blue-950 via-indigo-950 to-blue-950 text-blue-100 border-r border-blue-900 no-print 
+          flex flex-col justify-between overflow-y-auto shrink-0 h-full overscroll-contain
+          transition-transform duration-300 ease-in-out
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        `}>
           <div className="p-4 space-y-6">
+            <div className="flex md:hidden items-center justify-between mb-4 px-2">
+              <span className="text-[10px] font-bold text-blue-300 uppercase tracking-widest">Navigation</span>
+              <button onClick={() => setIsSidebarOpen(false)} className="p-1.5 text-blue-300 hover:text-white hover:bg-white/10 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
             {navCategories.map((cat, idx) => (
               <div key={idx} className="space-y-1.5">
                 <span className="text-[10px] font-bold text-blue-300/70 uppercase tracking-wider px-3.5 block mb-2">{cat.title}</span>
@@ -855,7 +894,10 @@ export default function App() {
                     return (
                       <button
                         key={item.id}
-                        onClick={() => setActiveTab(item.id as any)}
+                        onClick={() => {
+                          setActiveTab(item.id as any);
+                          setIsSidebarOpen(false);
+                        }}
                         className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between group ${
                           isActive 
                             ? 'bg-white/15 text-white shadow-sm ring-1 ring-white/20' 
@@ -884,6 +926,14 @@ export default function App() {
             <p>STRATIFY Engine • Build v4.12</p>
           </div>
         </aside>
+
+        {/* MOBILE OVERLAY */}
+        {isSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-sm transition-opacity"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
 
         {/* MAIN BODY WORKSPACE */}
         <main className="flex-1 p-4 md:p-5 overflow-y-auto max-w-7xl mx-auto w-full overscroll-contain">
@@ -1041,7 +1091,10 @@ export default function App() {
                 <HRModule showToast={showToast} />
               )}
               {activeTab === 'Form2307' && (
-                <Form2307Module isAdmin={currentUser?.role === 'superadmin'} />
+                <Form2307Module 
+                  isAdmin={currentUser?.role === 'superadmin'} 
+                  showToast={showToast}
+                />
               )}
               {activeTab === 'AuditTrail' && (
                 <AuditTrailModule />

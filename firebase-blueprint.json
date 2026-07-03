@@ -37,9 +37,24 @@
         "tenantId": { "type": "string" }
       },
       "required": ["type", "date", "payor", "particulars", "amount", "status", "tenantId"]
+    },
+    "Configuration": {
+      "title": "Configuration",
+      "description": "Global system configurations",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "value": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["key", "value"]
     }
   },
   "firestore": {
+    "configurations/{configId}": {
+      "schema": { "$ref": "#/entities/Configuration" },
+      "description": "Stores global system configurations"
+    },
     "users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
       "description": "Stores user profiles"

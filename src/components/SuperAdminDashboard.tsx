@@ -1,17 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, LogOut, CheckCircle, Search, Edit3, Save, XCircle, Users, Activity, Play, Pause, MoreVertical, CreditCard, LayoutDashboard, Megaphone, Plus, Trash2 } from 'lucide-react';
+import { ShieldAlert, LogOut, CheckCircle, Search, Edit3, Save, XCircle, Users, Activity, Play, Pause, MoreVertical, CreditCard, LayoutDashboard, Megaphone, Plus, Trash2, Settings2, FileSpreadsheet, FileCheck2, RefreshCw } from 'lucide-react';
 import { Tenant, User, SystemAnnouncement } from '../types';
 import { format } from 'date-fns';
+import { syncConfigToFirebase, loadConfigFromFirebase } from '../lib/db';
+
+const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+};
 
 interface SuperAdminDashboardProps {
   tenants: Tenant[];
   setTenants: React.Dispatch<React.SetStateAction<Tenant[]>>;
   users: User[];
   onLogout: () => void;
+  onSelectTenant?: (tenant: Tenant) => void;
 }
 
-export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenants, setTenants, users, onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'tenants' | 'announcements'>('tenants');
+export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenants, setTenants, users, onLogout, onSelectTenant }) => {
+  const [activeTab, setActiveTab] = useState<'tenants' | 'announcements' | 'system'>('tenants');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   
@@ -19,6 +31,18 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
   const [announcements, setAnnouncements] = useState<SystemAnnouncement[]>([]);
   const [showAnnounceModal, setShowAnnounceModal] = useState(false);
   const [newAnnouncement, setNewAnnouncement] = useState<Partial<SystemAnnouncement>>({ title: '', message: '', type: 'info' });
+
+  // System Configuration State
+  const [masterTemplateName, setMasterTemplateName] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [excelMapping, setExcelMapping] = useState({
+    payeeTin: "C12",
+    payeeName: "C14",
+    payeeAddress: "C16",
+    payorTin: "C18",
+    payorName: "C20",
+    payorAddress: "C22",
+  });
 
   // Subscription Update Modal State
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
@@ -29,7 +53,43 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
   useEffect(() => {
     const saved = localStorage.getItem('stratify_announcements');
     if (saved) setAnnouncements(JSON.parse(saved));
+
+    const loadSystemConfig = async () => {
+      const template = await loadConfigFromFirebase("bir_2307_master_template");
+      if (template) {
+        setMasterTemplateName("Active Template (Synced)");
+      }
+      const mapping = await loadConfigFromFirebase("bir_2307_mapping");
+      if (mapping) {
+        try {
+          setExcelMapping(JSON.parse(mapping));
+        } catch (e) {}
+      }
+    };
+    loadSystemConfig();
   }, []);
+
+  const handleTemplateUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        setIsSyncing(true);
+        const result = event.target?.result as ArrayBuffer;
+        const base64 = arrayBufferToBase64(result);
+        await syncConfigToFirebase("bir_2307_master_template", base64);
+        setMasterTemplateName(file.name);
+        setIsSyncing(false);
+        alert("Master Template uploaded and synced globally!");
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  };
+
+  const handleMappingChange = async (newMapping: any) => {
+    setExcelMapping(newMapping);
+    await syncConfigToFirebase("bir_2307_mapping", JSON.stringify(newMapping));
+  };
 
   const saveAnnouncements = (data: SystemAnnouncement[]) => {
     setAnnouncements(data);
@@ -162,6 +222,12 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
           >
             System Announcements
           </button>
+          <button 
+            onClick={() => setActiveTab('system')}
+            className={`pb-2 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'system' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'}`}
+          >
+            Global Configuration
+          </button>
         </div>
 
         {activeTab === 'tenants' && (
@@ -267,6 +333,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
                       </td>
                       <td className="p-4">
                         <div className="flex justify-end gap-1.5 opacity-100 sm:opacity-50 sm:group-hover:opacity-100 transition-opacity">
+                          {onSelectTenant && (
+                            <button onClick={() => onSelectTenant(tenant)} className="p-2 text-blue-600 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors" title="Enter Tenant Workspace">
+                              <Play className="w-4 h-4" />
+                            </button>
+                          )}
                           <button onClick={() => openUpdateModal(tenant)} className="p-2 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 rounded-lg transition-colors" title="Manage Subscription & Modules">
                             <CheckCircle className="w-4 h-4" />
                           </button>
@@ -366,6 +437,130 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'system' && (
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden p-8 space-y-8">
+            <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4">
+              <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                <Settings2 className="w-5 h-5 text-indigo-500" />
+                Global System Configuration
+              </h2>
+              <p className="text-xs text-zinc-500 mt-1">Configure global templates and defaults for all tenants.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 mb-2 flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                    BIR Form 2307 Master Excel Template
+                  </h3>
+                  <p className="text-xs text-zinc-500 mb-4 leading-relaxed">
+                    Upload the official BIR 2307 Excel template. This file will be used as the base for all automated generation across all tenants.
+                  </p>
+
+                  {!masterTemplateName ? (
+                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all group">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <Plus className="w-8 h-8 text-zinc-300 group-hover:text-indigo-500 mb-2 transition-colors" />
+                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Select Excel File (.xlsx)</p>
+                      </div>
+                      <input type="file" className="hidden" accept=".xlsx" onChange={handleTemplateUpload} />
+                    </label>
+                  ) : (
+                    <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50 rounded-2xl p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-emerald-100 dark:bg-emerald-900/40 rounded-lg text-emerald-600">
+                          <FileCheck2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400">{masterTemplateName}</div>
+                          <div className="text-[10px] text-emerald-600/70">Synced to Global Firestore Storage</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isSyncing && <RefreshCw className="w-4 h-4 animate-spin text-emerald-500" />}
+                        <button 
+                          onClick={() => setMasterTemplateName(null)}
+                          className="p-1.5 text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-lg transition-colors"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-6 border-t border-zinc-100 dark:border-zinc-800">
+                  <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
+                    <LayoutDashboard className="w-4 h-4 text-blue-500" />
+                    Global Excel Coordinate Mapping
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Payee TIN Cell</label>
+                      <input 
+                        type="text" 
+                        value={excelMapping.payeeTin}
+                        onChange={(e) => handleMappingChange({ ...excelMapping, payeeTin: e.target.value })}
+                        className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Payee Name Cell</label>
+                      <input 
+                        type="text" 
+                        value={excelMapping.payeeName}
+                        onChange={(e) => handleMappingChange({ ...excelMapping, payeeName: e.target.value })}
+                        className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Payee Address Cell</label>
+                      <input 
+                        type="text" 
+                        value={excelMapping.payeeAddress}
+                        onChange={(e) => handleMappingChange({ ...excelMapping, payeeAddress: e.target.value })}
+                        className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Payor TIN Cell</label>
+                      <input 
+                        type="text" 
+                        value={excelMapping.payorTin}
+                        onChange={(e) => handleMappingChange({ ...excelMapping, payorTin: e.target.value })}
+                        className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-indigo-50/50 dark:bg-indigo-950/10 rounded-3xl p-8 border border-indigo-100 dark:border-indigo-900/30">
+                <h3 className="text-sm font-bold text-indigo-900 dark:text-indigo-300 mb-4 uppercase tracking-widest">Configuration Guide</h3>
+                <ul className="space-y-4 text-xs text-indigo-800/80 dark:text-indigo-400/80 leading-relaxed">
+                  <li className="flex gap-3">
+                    <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-[10px] font-bold text-indigo-600 shrink-0">1</div>
+                    <p>The Master Template must be an <strong>.xlsx</strong> file containing the official BIR Form 2307 layout.</p>
+                  </li>
+                  <li className="flex gap-3">
+                    <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-[10px] font-bold text-indigo-600 shrink-0">2</div>
+                    <p>Coordinate mapping uses standard Excel references (e.g., <strong>C12</strong>). Ensure these match the template exactly.</p>
+                  </li>
+                  <li className="flex gap-3">
+                    <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-[10px] font-bold text-indigo-600 shrink-0">3</div>
+                    <p>Changes saved here are instantly applied to all tenants across the entire platform.</p>
+                  </li>
+                  <li className="flex gap-3">
+                    <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-[10px] font-bold text-indigo-600 shrink-0">4</div>
+                    <p>Files are stored as Base64 in Firestore configurations collection. Limit template size to under 1MB for best performance.</p>
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
         )}

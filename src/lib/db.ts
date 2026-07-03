@@ -181,3 +181,26 @@ export const loadUsersFromFirebase = async (): Promise<User[]> => {
   }
 };
 
+export const syncConfigToFirebase = async (key: string, value: string) => {
+  try {
+    await setDoc(doc(db, 'configurations', key), { 
+      key, 
+      value, 
+      updatedAt: new Date().toISOString() 
+    });
+  } catch (e) {
+    console.error(`Error syncing config ${key}:`, e);
+  }
+};
+
+export const loadConfigFromFirebase = async (key: string): Promise<string | null> => {
+  try {
+    const querySnapshot = await getDocs(collection(db, 'configurations'));
+    const doc = querySnapshot.docs.find(d => d.id === key);
+    return doc ? doc.data().value : null;
+  } catch (e) {
+    console.error(`Error loading config ${key}:`, e);
+    return null;
+  }
+};
+

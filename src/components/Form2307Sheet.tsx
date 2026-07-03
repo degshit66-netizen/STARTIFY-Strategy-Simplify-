@@ -37,11 +37,12 @@ export const Form2307Sheet = ({
   payor,
   transactions,
   grandTotals,
+  signature,
 }: any) => {
   return (
     <div
       id="bir-2307-sheet"
-      className="w-[820px] bg-[#fffdef] text-zinc-950 border-[3px] border-zinc-950 p-6 shadow-md flex flex-col space-y-3 shrink-0 print:border-none print:shadow-none print:p-0 print:w-full print:bg-white"
+      className="w-[820px] bg-[#fffdef] text-zinc-950 border-[3px] border-zinc-950 p-6 shadow-md flex flex-col space-y-3 shrink-0 print:border-none print:shadow-none print:p-0 print:w-full print:bg-white relative"
     >
       {/* SHEET HEADER */}
       <div className="border-b-[2px] border-zinc-950 pb-2.5 grid grid-cols-12 gap-3 items-center">
@@ -365,8 +366,15 @@ export const Form2307Sheet = ({
         </p>
 
         <div className="grid grid-cols-12 gap-4 pt-2">
-          <div className="col-span-6 flex flex-col items-center justify-between space-y-5">
-            <div className="border-b border-zinc-900 w-full h-8 flex items-end justify-center">
+          <div className="col-span-6 flex flex-col items-center justify-between space-y-5 relative">
+            <div className="border-b border-zinc-900 w-full h-8 flex items-end justify-center relative">
+              {signature && (
+                <img 
+                  src={signature} 
+                  alt="Signature" 
+                  className="absolute -top-4 h-16 w-auto object-contain z-10 opacity-90" 
+                />
+              )}
               <span className="text-[10px] font-mono text-zinc-300 font-medium">
                 Digital Signature / Authorized Representative
               </span>
