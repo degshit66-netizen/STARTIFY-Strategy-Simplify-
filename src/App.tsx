@@ -38,7 +38,8 @@ import {
   FileSpreadsheet,
   PieChart,
   HardHat,
-  ShieldAlert
+  ShieldAlert,
+  FolderOpen
 } from 'lucide-react';
 
 import { LedgerEntry, CompanyConfig, User, Tenant, SchedulerTask, SystemAnnouncement } from './types';
@@ -63,6 +64,7 @@ import { COAModule } from './components/COAModule';
 import { EcommerceModule } from './components/EcommerceModule';
 import { PayrollModule } from './components/PayrollModule';
 import { HRModule } from './components/HRModule';
+import { FileModule } from './components/FileModule';
 import { DisbursementVoucherModal } from './components/DisbursementVoucherModal';
 import { AuditTrailModule } from './components/AuditTrailModule';
 import { Auth } from './components/Auth';
@@ -94,7 +96,8 @@ export type ActiveTab =
   | 'AuditTrail'
   | 'Ecommerce'
   | 'HR'
-  | 'Payroll';
+  | 'Payroll'
+  | 'Media';
 
 interface Toast {
   id: number;
@@ -652,6 +655,7 @@ export default function App() {
         { id: 'Contacts', label: 'CRM Contacts', icon: <Users className="w-4 h-4 mr-3" /> },
         { id: 'Scheduler', label: 'Scheduler', icon: <Calendar className="w-4 h-4 mr-3" /> },
         { id: 'Quotation', label: 'Quotation Builder', icon: <FileText className="w-4 h-4 mr-3" /> },
+        { id: 'Media', label: 'Media & Files', icon: <FolderOpen className="w-4 h-4 mr-3" /> },
       ]
     },
     {
@@ -1125,6 +1129,9 @@ export default function App() {
               )}
               {activeTab === 'AuditTrail' && (
                 <AuditTrailModule />
+              )}
+              {activeTab === 'Media' && (
+                <FileModule />
               )}
             </motion.div>
           </AnimatePresence>

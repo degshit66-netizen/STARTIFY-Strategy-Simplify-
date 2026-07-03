@@ -68,6 +68,12 @@ const steps: { title: string; description: string; tab: ActiveTab; highlightText
     description: 'Keep secure employee logs, position details, and track leaves, sick times, and digital onboarding workflows.',
     tab: 'HR',
     highlightText: 'Look at the "Add Employee" and "Leave Tracker" modules.'
+  },
+  {
+    title: 'Media & Cloud Storage',
+    description: 'Keep your digital receipts, business legal documents, and asset images in one secure cloud library. Access them anywhere, anytime.',
+    tab: 'Media',
+    highlightText: 'Look at the "Upload File" and "Media Library" grid.'
   }
 ];
 
@@ -142,6 +148,10 @@ const screenButtonGuides: Record<ActiveTab, ButtonGuide[]> = {
   ],
   AuditTrail: [
     { name: 'View Audit logs', actionDesc: 'Displays complete database history, showing who created, edited, or deleted records.', tip: 'Maintains airtight security logs to prevent fraudulent internal bookkeeping.' }
+  ],
+  Media: [
+    { name: 'Upload File', actionDesc: 'Saves receipts and documents to your workspace storage.', tip: 'Use this for digital archiving of legal documents and physical receipt snapshots.' },
+    { name: 'Search Storage', actionDesc: 'Finds files by filename or upload timestamp.', tip: 'Keeps your media library organized and searchable for audit compliance.' }
   ]
 };
 
