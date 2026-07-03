@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User, Tenant } from '../types';
-import { Building, ShieldCheck, Mail, Lock, ArrowRight, UserPlus, MapPin, Hash, Loader2 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Building, ShieldCheck, ShieldAlert, Mail, Lock, ArrowRight, UserPlus, MapPin, Hash, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { syncTenantToFirebase, syncUserToFirebase, getUserByEmail, loadTenantsFromFirebase } from '../lib/db';
@@ -180,246 +180,304 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-950 via-blue-900 to-indigo-950 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-950 via-blue-900 to-indigo-950 p-4 font-sans">
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden border border-blue-100 dark:border-blue-900/30 max-h-[90vh] flex flex-col"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="w-full max-w-5xl bg-white dark:bg-zinc-900 rounded-[2rem] shadow-2xl overflow-hidden border border-blue-100 dark:border-blue-900/30 flex flex-col md:flex-row min-h-[700px]"
       >
-        <div className="p-8 text-center bg-white dark:bg-zinc-900 border-b border-blue-50 dark:border-zinc-800 shrink-0">
-          <img 
-            src="https://i.postimg.cc/5yGwSWWR/1782659487700.png" 
-            alt="STRATIFY Logo" 
-            className="w-24 h-24 mx-auto mb-4 object-contain rounded-xl shadow-sm"
-          />
-          <h1 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white uppercase tracking-tight">STRATIFY (Strategy + Simplify)</h1>
-          <p className="text-blue-600 dark:text-blue-400 text-[10px] font-black tracking-[0.2em] uppercase">Enterprise Resource Platform</p>
-        </div>
-
-        <div className="p-8 overflow-y-auto">
-          <div className="flex gap-4 mb-8">
-            <button 
-              onClick={() => { setIsLogin(true); setError(''); }}
-              className={`flex-1 pb-3 text-sm font-bold border-b-2 transition-colors ${isLogin ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
-            >
-              Log In
-            </button>
-            <button 
-              onClick={() => { setIsLogin(false); setError(''); }}
-              className={`flex-1 pb-3 text-sm font-bold border-b-2 transition-colors ${!isLogin ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
-            >
-              Register
-            </button>
+        {/* Left Side: Brand & Hero (Desktop Only) */}
+        <div className="hidden md:flex md:w-5/12 bg-zinc-950 p-12 flex-col justify-between relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-transparent to-indigo-600/20 pointer-events-none" />
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl" />
+          
+          <div className="relative z-10">
+            <img 
+              src="https://i.postimg.cc/5yGwSWWR/1782659487700.png" 
+              alt="STRATIFY Logo" 
+              className="w-20 h-20 mb-8 object-contain rounded-2xl shadow-xl shadow-blue-500/10"
+            />
+            <h2 className="text-4xl font-black text-white tracking-tighter mb-4 leading-tight">
+              Strategy <span className="text-blue-500">+</span><br />Simplify.
+            </h2>
+            <p className="text-zinc-400 text-lg font-medium leading-relaxed max-w-xs">
+              The complete enterprise resource platform for Philippine businesses.
+            </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="p-3 bg-rose-50 text-rose-600 rounded-xl text-sm font-medium border border-rose-100 dark:bg-rose-500/10 dark:border-rose-500/20">
-                {error}
+          <div className="relative z-10 space-y-6">
+            <div className="flex items-center gap-4 text-zinc-300">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-5 h-5 text-blue-400" />
               </div>
-            )}
-            
-            {!isLogin && (
-              <>
-                <div>
-                  <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">Company Name</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Building className="h-4 w-4 text-zinc-400" />
-                    </div>
-                    <input 
-                      type="text" 
-                      required
-                      value={companyName}
-                      onChange={e => setCompanyName(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 text-sm text-zinc-900 dark:text-zinc-100"
-                      placeholder="Enter your company name"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">Company Address</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <MapPin className="h-4 w-4 text-zinc-400" />
-                    </div>
-                    <input 
-                      type="text" 
-                      required
-                      value={address}
-                      onChange={e => setAddress(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 text-sm text-zinc-900 dark:text-zinc-100"
-                      placeholder="Full Business Address"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">Tax Identification Number (TIN)</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Hash className="h-4 w-4 text-zinc-400" />
-                    </div>
-                    <input 
-                      type="text" 
-                      required
-                      value={tin}
-                      onChange={e => setTin(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 text-sm text-zinc-900 dark:text-zinc-100"
-                      placeholder="000-000-000-00000"
-                    />
-                  </div>
-                </div>
-
-                {/* USER COUNT & SUBSCRIPTION CALCULATOR */}
-                <div className="bg-zinc-100/50 dark:bg-zinc-800/40 p-4.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-3.5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="block text-xs font-bold text-zinc-800 dark:text-zinc-200">Registered Users</span>
-                      <span className="block text-[10px] text-zinc-400">Add-on seats are ₱100/mo each</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setUserLimit(prev => Math.max(1, prev - 1))}
-                        className="w-8 h-8 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center font-bold text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-                      >
-                        -
-                      </button>
-                      <input
-                        type="number"
-                        min="1"
-                        value={userLimit}
-                        onChange={e => setUserLimit(Math.max(1, parseInt(e.target.value) || 1))}
-                        className="w-12 text-center text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg py-1.5 focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setUserLimit(prev => prev + 1)}
-                        className="w-8 h-8 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center font-bold text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="pt-2.5 border-t border-dashed border-zinc-200 dark:border-zinc-700 text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
-                    <div className="flex justify-between">
-                      <span>1 Client Base License:</span>
-                      <span className="font-semibold">₱2,999</span>
-                    </div>
-                    {userLimit > 1 && (
-                      <div className="flex justify-between">
-                        <span>Add-on Users ({userLimit - 1} × ₱100):</span>
-                        <span className="font-semibold text-zinc-700 dark:text-zinc-300">₱{(userLimit - 1) * 100}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between font-bold text-sm text-blue-600 dark:text-blue-400 pt-1.5 border-t border-zinc-200 dark:border-zinc-800">
-                      <span>Total Price / Month:</span>
-                      <span>₱{(2999 + (userLimit > 1 ? (userLimit - 1) * 100 : 0)).toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-            
-            <div>
-              <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">Email Address</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-4 w-4 text-zinc-400" />
-                </div>
-                <input 
-                  type="email" 
-                  required
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 text-sm text-zinc-900 dark:text-zinc-100"
-                  placeholder="name@company.com"
-                />
-              </div>
-            </div>
-            
-            {!isGoogleReg && (
               <div>
-                <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">Password</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-4 w-4 text-zinc-400" />
-                  </div>
-                  <input 
-                    type="password" 
-                    required
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 text-sm text-zinc-900 dark:text-zinc-100"
-                    placeholder="••••••••"
-                  />
-                </div>
-              </div>
-            )}
-
-            <button 
-              type="submit" 
-              disabled={isSubmitting}
-              className="w-full mt-6 py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : isLogin ? (
-                <>Sign In <ArrowRight className="w-4 h-4" /></>
-              ) : (
-                <>Create Account (7-Day Trial) <UserPlus className="w-4 h-4" /></>
-              )}
-            </button>
-            
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-zinc-200 dark:border-zinc-800"></div>
-              </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="bg-white dark:bg-zinc-900 px-2 text-zinc-500">Or continue with</span>
+                <p className="text-xs font-bold text-white uppercase tracking-widest">BIR Compliant</p>
+                <p className="text-[10px] text-zinc-500">Official ENCS / RR 09-2009 Ready</p>
               </div>
             </div>
+            <div className="flex items-center gap-4 text-zinc-300">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+                <Building className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-white uppercase tracking-widest">Multi-Tenant</p>
+                <p className="text-[10px] text-zinc-500">Secure isolated organizational data</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="relative z-10 pt-12 border-t border-white/5">
+            <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.3em]">Built for the modern enterprise</p>
+          </div>
+        </div>
 
-            <button
-              type="button"
-              onClick={handleGoogleAuth}
-              disabled={isSubmitting}
-              className="w-full py-3 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors shadow-sm disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <path
-                      fill="#4285F4"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                    />
-                    <path
-                      fill="#EA4335"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                    />
-                  </svg>
-                  Google
-                </>
-              )}
-            </button>
+        {/* Right Side: Auth Form */}
+        <div className="flex-1 flex flex-col h-full overflow-hidden">
+          <div className="p-8 md:p-12 text-center md:text-left md:hidden bg-zinc-950 border-b border-white/5 shrink-0">
+            <img 
+              src="https://i.postimg.cc/5yGwSWWR/1782659487700.png" 
+              alt="STRATIFY Logo" 
+              className="w-16 h-16 mx-auto mb-4 object-contain rounded-xl"
+            />
+            <h1 className="text-xl font-black text-white uppercase tracking-tighter">STRATIFY</h1>
+            <p className="text-blue-500 text-[10px] font-black tracking-widest uppercase">Strategy + Simplify</p>
+          </div>
 
-            {!isLogin && (
-              <p className="text-center text-xs text-zinc-500 mt-4 leading-relaxed">
-                By registering, you get full access to all modules for 7 days. After the trial, you must subscribe to continue using the platform.
-              </p>
-            )}
-          </form>
+          <div className="flex-1 p-8 md:p-16 overflow-y-auto custom-scrollbar bg-white dark:bg-zinc-900">
+            <div className="max-w-md mx-auto">
+              <div className="mb-10">
+                <h3 className="text-2xl font-black text-zinc-900 dark:text-white mb-2">
+                  {isLogin ? 'Welcome back' : 'Start your journey'}
+                </h3>
+                <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium">
+                  {isLogin ? 'Enter your credentials to access your workspace.' : 'Register your organization and start your 7-day free trial.'}
+                </p>
+              </div>
+
+              <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl mb-8">
+                <button 
+                  onClick={() => { setIsLogin(true); setError(''); }}
+                  className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${isLogin ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                >
+                  LOG IN
+                </button>
+                <button 
+                  onClick={() => { setIsLogin(false); setError(''); }}
+                  className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${!isLogin ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                >
+                  REGISTER
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <AnimatePresence mode="wait">
+                  {error && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="p-4 bg-rose-50 text-rose-600 rounded-2xl text-xs font-bold border border-rose-100 dark:bg-rose-500/10 dark:border-rose-500/20 flex items-center gap-3"
+                    >
+                      <ShieldAlert className="w-4 h-4 shrink-0" />
+                      {error}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                
+                <AnimatePresence mode="popLayout">
+                  {!isLogin && (
+                    <motion.div 
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      className="space-y-5"
+                    >
+                      <div>
+                        <label className="block text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">Company Name</label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <Building className="h-4 w-4 text-zinc-400" />
+                          </div>
+                          <input 
+                            type="text" 
+                            required
+                            value={companyName}
+                            onChange={e => setCompanyName(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                            placeholder="e.g. Acme Corporation"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">TIN Number</label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                              <Hash className="h-4 w-4 text-zinc-400" />
+                            </div>
+                            <input 
+                              type="text" 
+                              required
+                              value={tin}
+                              onChange={e => setTin(e.target.value)}
+                              className="w-full pl-12 pr-4 py-3.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                              placeholder="000-000-000"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">Users</label>
+                          <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-2 py-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setUserLimit(prev => Math.max(1, prev - 1))}
+                              className="w-8 h-8 rounded-xl bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white flex items-center justify-center font-bold shadow-sm hover:bg-zinc-50 transition-all"
+                            >
+                              -
+                            </button>
+                            <span className="flex-1 text-center text-sm font-black text-zinc-900 dark:text-white">{userLimit}</span>
+                            <button
+                              type="button"
+                              onClick={() => setUserLimit(prev => prev + 1)}
+                              className="w-8 h-8 rounded-xl bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white flex items-center justify-center font-bold shadow-sm hover:bg-zinc-50 transition-all"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">Address</label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <MapPin className="h-4 w-4 text-zinc-400" />
+                          </div>
+                          <input 
+                            type="text" 
+                            required
+                            value={address}
+                            onChange={e => setAddress(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                            placeholder="Complete Business Address"
+                          />
+                        </div>
+                      </div>
+                      <div className="p-4 bg-blue-50/50 dark:bg-blue-500/5 rounded-2xl border border-blue-100 dark:border-blue-500/10">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">Total Monthly Price</span>
+                          <span className="text-sm font-black text-blue-700 dark:text-blue-300">₱{(2999 + (userLimit > 1 ? (userLimit - 1) * 100 : 0)).toLocaleString()}</span>
+                        </div>
+                        <p className="text-[9px] text-zinc-500 font-medium">Billed annually at ₱{((2999 + (userLimit > 1 ? (userLimit - 1) * 100 : 0)) * 12).toLocaleString()} or pay monthly.</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                
+                <div>
+                  <label className="block text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">Email Address</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Mail className="h-4 w-4 text-zinc-400" />
+                    </div>
+                    <input 
+                      type="email" 
+                      required
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      className="w-full pl-12 pr-4 py-3.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                      placeholder="name@company.com"
+                    />
+                  </div>
+                </div>
+                
+                {!isGoogleReg && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Password</label>
+                      {isLogin && (
+                        <button type="button" className="text-[10px] font-black text-blue-600 hover:text-blue-500 uppercase tracking-widest">Forgot?</button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Lock className="h-4 w-4 text-zinc-400" />
+                      </div>
+                      <input 
+                        type="password" 
+                        required={!isGoogleReg}
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        className="w-full pl-12 pr-4 py-3.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                        placeholder="••••••••"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting}
+                  className="w-full mt-4 py-4 bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 rounded-[1.25rem] text-sm font-black flex items-center justify-center gap-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-zinc-950/10 dark:shadow-white/5"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : isLogin ? (
+                    <>SIGN IN TO WORKSPACE <ArrowRight className="w-4 h-4" /></>
+                  ) : (
+                    <>CREATE ENTERPRISE ACCOUNT <UserPlus className="w-4 h-4" /></>
+                  )}
+                </button>
+                
+                <div className="relative my-8">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-zinc-200 dark:border-zinc-800"></div>
+                  </div>
+                  <div className="relative flex justify-center text-[10px]">
+                    <span className="bg-white dark:bg-zinc-900 px-4 text-zinc-400 font-black uppercase tracking-widest">Secure Cloud Gateway</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleGoogleAuth}
+                  disabled={isSubmitting}
+                  className="w-full py-4 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded-[1.25rem] text-xs font-black flex items-center justify-center gap-3 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" viewBox="0 0 24 24">
+                        <path
+                          fill="#4285F4"
+                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                        />
+                        <path
+                          fill="#EA4335"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                        />
+                      </svg>
+                      CONTINUE WITH GOOGLE
+                    </>
+                  )}
+                </button>
+
+                {!isLogin && (
+                  <p className="text-center text-[10px] text-zinc-500 font-bold uppercase tracking-wide mt-6 leading-relaxed">
+                    Licensed under STRATIFY EULA • Secure SSL 256-bit Encryption
+                  </p>
+                )}
+              </form>
+            </div>
+          </div>
         </div>
       </motion.div>
     </div>

@@ -10,7 +10,8 @@ import {
   ArrowUpRight, 
   ArrowDownRight,
   FileText,
-  HeartPulse
+  HeartPulse,
+  ShieldCheck
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -144,6 +145,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 6);
+
+  // Compliance Progress Mock (Calculated based on ledger density)
+  const complianceScore = Math.min(100, Math.round((filteredRows.length / 50) * 100));
+  const isVatReady = filteredRows.some(r => r.taxType === 'Vatable');
 
   const COLORS = ['#10b981', '#ef4444', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 
@@ -386,9 +391,61 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </p>
         </motion.div>
       </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <motion.div variants={itemVariants} className="lg:col-span-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-2xl shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">Compliance Readiness</h3>
+            <ShieldCheck className="w-5 h-5 text-blue-500" />
+          </div>
+          <div className="flex flex-col items-center justify-center py-4">
+            <div className="relative w-32 h-32 flex items-center justify-center">
+              <svg className="w-full h-full transform -rotate-90">
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="58"
+                  fill="transparent"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  className="text-zinc-100 dark:text-zinc-800"
+                />
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="58"
+                  fill="transparent"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  strokeDasharray={364.42}
+                  strokeDashoffset={364.42 - (364.42 * complianceScore) / 100}
+                  strokeLinecap="round"
+                  className="text-blue-500 transition-all duration-1000 ease-out"
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-2xl font-black text-zinc-900 dark:text-white">{complianceScore}%</span>
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Readiness</span>
+              </div>
+            </div>
+            <div className="mt-6 w-full space-y-3">
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest">
+                <span className="text-zinc-500">VAT Reporting</span>
+                <span className={isVatReady ? 'text-emerald-500' : 'text-zinc-400'}>{isVatReady ? 'ACTIVE' : 'INACTIVE'}</span>
+              </div>
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest">
+                <span className="text-zinc-500">Bookkeeping Logs</span>
+                <span className={filteredRows.length > 10 ? 'text-emerald-500' : 'text-amber-500'}>{filteredRows.length > 10 ? 'HEALTHY' : 'LOW DENSITY'}</span>
+              </div>
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest">
+                <span className="text-zinc-500">Audit Consistency</span>
+                <span className="text-emerald-500">OPTIMAL</span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <motion.div variants={itemVariants} className="lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-2xl shadow-sm flex flex-col justify-between min-h-[380px]">
+        <motion.div variants={itemVariants} className="lg:col-span-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-2xl shadow-sm flex flex-col justify-between min-h-[380px]">
           <div>
             <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider mb-4">Monthly sales vs purchases</h3>
           </div>

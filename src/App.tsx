@@ -256,6 +256,21 @@ export default function App() {
   // --- Effects ---
 
   useEffect(() => {
+    // Dynamic Meta Tags & Title Update for SEO/Social Sharing
+    document.title = currentTenant ? `${currentTenant.name} | STRATIFY` : 'STRATIFY (Strategy + Simplify)';
+    
+    // Attempt to update meta tags for crawlers that support JS
+    const metaTitle = document.querySelector('meta[property="og:title"]');
+    if (metaTitle) metaTitle.setAttribute('content', document.title);
+    
+    const metaUrl = document.querySelector('meta[property="og:url"]');
+    if (metaUrl) metaUrl.setAttribute('content', window.location.href);
+
+    const twitterUrl = document.querySelector('meta[property="twitter:url"]');
+    if (twitterUrl) twitterUrl.setAttribute('content', window.location.href);
+  }, [currentTenant]);
+
+  useEffect(() => {
     const fetchAnnouncements = async () => {
       const saved = await loadConfigFromFirebase('stratify_announcements');
       if (saved) {
