@@ -171,7 +171,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
       const trialEndsAt = new Date();
       trialEndsAt.setDate(trialEndsAt.getDate() + 7); // 7 days trial
       
-      const calculatedPrice = 1500 + (userLimit > 1 ? (userLimit - 1) * 500 : 0);
+      const calculatedPrice = 2999 + (userLimit > 1 ? (userLimit - 1) * 100 : 0);
       const newTenant: Tenant = {
         id: tenantId,
         name: companyName,
@@ -222,8 +222,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
             alt="STRATIFY Logo" 
             className="w-24 h-24 mx-auto mb-4 object-contain rounded-xl shadow-sm"
           />
-          <h1 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">STRATIFY (System+Strategy)</h1>
-          <p className="text-blue-600 dark:text-blue-400 text-sm font-medium tracking-wide uppercase">System Development</p>
+          <h1 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white uppercase tracking-tight">STRATIFY (Strategy + Simplify)</h1>
+          <p className="text-blue-600 dark:text-blue-400 text-[10px] font-black tracking-[0.2em] uppercase">Enterprise Resource Platform</p>
         </div>
 
         <div className="p-8 overflow-y-auto">
@@ -305,7 +305,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="block text-xs font-bold text-zinc-800 dark:text-zinc-200">Registered Users</span>
-                      <span className="block text-[10px] text-zinc-400">Add-on seats are ₱500/mo each</span>
+                      <span className="block text-[10px] text-zinc-400">Add-on seats are ₱100/mo each</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -335,17 +335,17 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                   <div className="pt-2.5 border-t border-dashed border-zinc-200 dark:border-zinc-700 text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
                     <div className="flex justify-between">
                       <span>1 Client Base License:</span>
-                      <span className="font-semibold">₱1,500</span>
+                      <span className="font-semibold">₱2,999</span>
                     </div>
                     {userLimit > 1 && (
                       <div className="flex justify-between">
-                        <span>Add-on Users ({userLimit - 1} × ₱500):</span>
-                        <span className="font-semibold text-zinc-700 dark:text-zinc-300">₱{(userLimit - 1) * 500}</span>
+                        <span>Add-on Users ({userLimit - 1} × ₱100):</span>
+                        <span className="font-semibold text-zinc-700 dark:text-zinc-300">₱{(userLimit - 1) * 100}</span>
                       </div>
                     )}
                     <div className="flex justify-between font-bold text-sm text-blue-600 dark:text-blue-400 pt-1.5 border-t border-zinc-200 dark:border-zinc-800">
                       <span>Total Price / Month:</span>
-                      <span>₱{(1500 + (userLimit > 1 ? (userLimit - 1) * 500 : 0)).toLocaleString()}</span>
+                      <span>₱{(2999 + (userLimit > 1 ? (userLimit - 1) * 100 : 0)).toLocaleString()}</span>
                     </div>
                   </div>
                 </div>

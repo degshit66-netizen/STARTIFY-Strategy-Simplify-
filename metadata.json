@@ -1,6 +1,6 @@
 {
-  "name": "DEGZ BIR Books & Tax Portal",
-  "description": "The official BIR-compliant general ledger, books of accounts, financial statements, and tax returns filing system for DEGZ ENTERPRISE INC.",
+  "name": "STRATIFY (Strategy + Simplify)",
+  "description": "The official BIR-compliant general ledger, books of accounts, financial statements, and tax returns filing system.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

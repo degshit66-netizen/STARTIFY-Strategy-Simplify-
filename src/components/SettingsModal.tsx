@@ -31,7 +31,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [activeSettingsTab, setActiveSettingsTab] = useState<'company' | 'team' | 'billing' | 'pwa'>('company');
 
   const [config, setConfig] = useState<CompanyConfig>({
-    companyName: 'STRATIFY (System+Strategy)',
+    companyName: 'STRATIFY (Strategy + Simplify)',
     tin: '009-887-112-000',
     address: 'Ortigas Center, Pasig City, Metro Manila',
     registeredVat: true,
@@ -55,6 +55,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const stored = localStorage.getItem('stratify_company_config');
       if (stored) {
         const parsed = JSON.parse(stored);
+        
+        // Migration: Clear hardcoded 'Degz hub' from storage
+        if (parsed.companyName && parsed.companyName.toLowerCase().includes('degz hub')) {
+          localStorage.removeItem('stratify_company_config');
+          setConfig({
+            companyName: 'STRATIFY (Strategy + Simplify)',
+            tin: '009-887-112-000',
+            address: 'Ortigas Center, Pasig City, Metro Manila',
+            registeredVat: true,
+            secPermitNo: 'SEC-PH-2026-99120',
+            ptuNo: 'PTU-11223344-STRATIFY',
+            authorizedPIN: '1234',
+            logoUrl: 'https://i.postimg.cc/5yGwSWWR/1782659487700.png'
+          });
+          return;
+        }
+
         if (parsed.logoUrl === '/logo.png' || parsed.logoUrl === '') {
           parsed.logoUrl = 'https://i.postimg.cc/5yGwSWWR/1782659487700.png';
         }
@@ -770,16 +787,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <div className="flex justify-between items-center text-[11px]">
                           <span>Base Subscription Fee:</span>
                           <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-200">
-                            {billingPlan === 'annual' ? '₱18,000.00 / yr' : '₱1,500.00 / mo'}
+                            {billingPlan === 'annual' ? '₱35,988.00 / yr' : '₱2,999.00 / mo'}
                           </span>
                         </div>
                         <div className="flex justify-between items-center text-[11px]">
                           <span>User Seats Fee:</span>
                           <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-200">
-                            {requestedUsers} seats x {billingPlan === 'annual' ? '₱6,000.00' : '₱500.00'} = 
+                            {requestedUsers} seats x {billingPlan === 'annual' ? '₱1,200.00' : '₱100.00'} = 
                             {billingPlan === 'annual' 
-                              ? ` ₱${(requestedUsers * 6000).toLocaleString(undefined, { minimumFractionDigits: 2 })} / yr`
-                              : ` ₱${(requestedUsers * 500).toLocaleString(undefined, { minimumFractionDigits: 2 })} / mo`
+                              ? ` ₱${(requestedUsers * 1200).toLocaleString(undefined, { minimumFractionDigits: 2 })} / yr`
+                              : ` ₱${(requestedUsers * 100).toLocaleString(undefined, { minimumFractionDigits: 2 })} / mo`
                             }
                           </span>
                         </div>
@@ -790,8 +807,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <span className="font-black font-mono text-indigo-600 dark:text-indigo-400 text-base block">
                               ₱{
                                 billingPlan === 'annual'
-                                  ? ((1500 + requestedUsers * 500) * 12).toLocaleString(undefined, { minimumFractionDigits: 2 })
-                                  : (1500 + requestedUsers * 500).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                                  ? ((2999 + requestedUsers * 100) * 12).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                                  : (2999 + requestedUsers * 100).toLocaleString(undefined, { minimumFractionDigits: 2 })
                               }
                             </span>
                             <span className="text-[9px] text-zinc-400 uppercase tracking-wider font-bold">
@@ -812,8 +829,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <p className="leading-relaxed text-[11px]">
                           You have a pending request for a <strong>{currentTenant.subscriptionRequestPlan === 'annual' ? 'Annual' : 'Monthly'}</strong> premium plan with <strong>{currentTenant.subscriptionRequestUserLimit} user seat(s)</strong> capacity (Total Cost: ₱{
                             (currentTenant.subscriptionRequestPlan === 'annual'
-                              ? (1500 + (currentTenant.subscriptionRequestUserLimit || 0) * 500) * 12
-                              : (1500 + (currentTenant.subscriptionRequestUserLimit || 0) * 500)
+                              ? (2999 + (currentTenant.subscriptionRequestUserLimit || 0) * 100) * 12
+                              : (2999 + (currentTenant.subscriptionRequestUserLimit || 0) * 100)
                             ).toLocaleString(undefined, { minimumFractionDigits: 2 })
                           }).
                         </p>

@@ -171,4 +171,22 @@ html, body, #root {
     break-before: avoid !important;
     margin-top: 0 !important;
   }
+
+  /* Specific rule for BIR 2307 Print */
+  body:has(#bir-2307-sheet) .no-print,
+  body:has(#bir-2307-sheet) aside,
+  body:has(#bir-2307-sheet) header,
+  body:has(#bir-2307-sheet) main > div:not(.print\:block) {
+    display: none !important;
+  }
+
+  body:has(#bir-2307-sheet) .print\:block {
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    z-index: 99999 !important;
+  }
 }

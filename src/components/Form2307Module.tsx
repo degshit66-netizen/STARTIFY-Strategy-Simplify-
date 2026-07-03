@@ -1,31 +1,44 @@
 import React, { useState, useEffect, useMemo } from "react";
-import * as XLSX from "xlsx";
-import ExcelJS from "exceljs";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import {
   Download,
-  RefreshCw,
   Plus,
   Trash2,
-  FileSpreadsheet,
-  Printer,
-  Import,
-  Sparkles,
+  Database,
+  FileText,
+  Search,
+  Eye,
   X,
-  ChevronRight,
   FileCheck2,
+  Calendar,
+  Building,
+  CreditCard,
+  Printer,
+  ChevronRight,
+  Settings,
+  MoreVertical,
 } from "lucide-react";
+import { 
+  collection, 
+  query, 
+  onSnapshot, 
+  addDoc, 
+  deleteDoc, 
+  doc, 
+  updateDoc 
+} from "firebase/firestore";
+import { db } from "../lib/firebase";
 import { r2, parseNum, formatCurrency } from "../utils/helpers";
-import html2pdf from "html2pdf.js";
-import { Form2307Sheet, renderTinSquares } from "./Form2307Sheet";
+import { format } from "date-fns";
+import { Form2307Record, Tenant } from "../types";
 import { syncConfigToFirebase, loadConfigFromFirebase } from "../lib/db";
+import { Form2307Sheet } from "./Form2307Sheet";
 
-interface Transaction {
-  id: number;
-  atc: string;
-  description: string;
-  income: number;
-  taxRate: number;
-  tax: number;
+interface Form2307ModuleProps {
+  isAdmin?: boolean;
+  showToast: (msg: string, type: "success" | "error" | "info" | "warning") => void;
+  currentTenant: Tenant | null;
+  initialData?: any;
 }
 
 const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
@@ -48,958 +61,647 @@ const base64ToArrayBuffer = (base64: string) => {
   return bytes.buffer;
 };
 
-interface Form2307ModuleProps {
-  isAdmin?: boolean;
-  showToast: (msg: string, type: "success" | "error" | "info" | "warning") => void;
-}
-
 export const Form2307Module: React.FC<Form2307ModuleProps> = ({
   isAdmin = false,
   showToast,
+  currentTenant,
+  initialData
 }) => {
-  // Mode selection: "split" (Editor + Live Form), "print-preview" (Full page form)
-  const [viewMode, setViewMode] = useState<"split" | "form-only">("split");
+  const [forms, setForms] = useState<Form2307Record[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeForm, setActiveForm] = useState<Form2307Record | null>(null);
 
+  // Builder States (Manual entry)
   const [periodFrom, setPeriodFrom] = useState("");
   const [periodTo, setPeriodTo] = useState("");
-
-  const [payee, setPayee] = useState({
-    tin: "",
-    name: "",
-    address: "",
-    zip: "",
-  });
-  const [payor, setPayor] = useState({
-    tin: "",
-    name: "",
-    address: "",
-    zip: "",
-  });
-
-  const [transactions, setTransactions] = useState<any[]>([
-    { atc: "WI158", m1: "", m2: "", m3: "", rate: "2" },
-  ]);
-
+  const [payee, setPayee] = useState({ tin: "", name: "", address: "", zip: "" });
+  const [payor, setPayor] = useState({ tin: "", name: "", address: "", zip: "" });
+  const [transactions, setTransactions] = useState<any[]>([{ atc: "WI158", m1: "", m2: "", m3: "", rate: "2" }]);
   const [signature, setSignature] = useState<string | null>(null);
-  const [masterTemplate, setMasterTemplate] = useState<ArrayBuffer | null>(null);
-  const [showMapping, setShowMapping] = useState(false);
-  const [excelMapping, setExcelMapping] = useState({
-    payeeTin: "C12",
-    payeeName: "C14",
-    payeeAddress: "C16",
-    payorTin: "C18",
-    payorName: "C20",
-    payorAddress: "C22",
-  });
-
-  // Load ledger entries to support 1-click importing of posted withholding tax items!
-  const [salesLedgerEntries, setSalesLedgerEntries] = useState<any[]>([]);
-  const [showImportList, setShowImportList] = useState(false);
 
   useEffect(() => {
-    // Load e-signature from storage if exists
-    const savedSig = localStorage.getItem("stratify_2307_signature");
-    if (savedSig) setSignature(savedSig);
+    if (initialData) {
+      if (initialData.payee) setPayee(prev => ({ ...prev, ...initialData.payee }));
+      if (initialData.periodFrom) setPeriodFrom(initialData.periodFrom);
+      if (initialData.periodTo) setPeriodTo(initialData.periodTo);
+      if (initialData.transactions) setTransactions(initialData.transactions);
+      setShowModal(true);
+    }
+  }, [initialData]);
 
-    // Load master template from Firestore
-    const loadData = async () => {
-      const savedTemplate = await loadConfigFromFirebase("bir_2307_master_template");
-      if (savedTemplate) {
-        setMasterTemplate(base64ToArrayBuffer(savedTemplate));
-      }
-      const savedMapping = await loadConfigFromFirebase("bir_2307_mapping");
-      if (savedMapping) {
-        try {
-          setExcelMapping(JSON.parse(savedMapping));
-        } catch (e) {}
-      }
+  const [masterTemplate, setMasterTemplate] = useState<ArrayBuffer | null>(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [showMapping, setShowMapping] = useState(false);
+  const [pdfMapping, setPdfMapping] = useState({
+    payeeTin: { x: 100, y: 700 },
+    payeeName: { x: 100, y: 680 },
+    payeeAddress: { x: 100, y: 660 },
+    payorTin: { x: 100, y: 640 },
+    payorName: { x: 100, y: 620 },
+    payorAddress: { x: 100, y: 600 },
+    periodFrom: { x: 450, y: 710 },
+    periodTo: { x: 500, y: 710 },
+    transStartRow: 500,
+    transRowHeight: 20
+  });
+
+  useEffect(() => {
+    const loadMappingAndTemplate = async () => {
+      const mapping = await loadConfigFromFirebase("bir_2307_pdf_mapping");
+      if (mapping) setPdfMapping(mapping);
+      
+      const templateBase64 = await loadConfigFromFirebase("bir_2307_master_pdf_template");
+      if (templateBase64) setMasterTemplate(base64ToArrayBuffer(templateBase64));
+
+      const savedSig = await loadConfigFromFirebase("authorized_signature");
+      if (savedSig) setSignature(savedSig);
     };
-    loadData();
-
-    try {
-      const tenantId = localStorage.getItem("current_tenant_id") || "default";
-      const key = `stratify_general_ledger_${tenantId}`;
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        // Filter transactions that represent sales and have withholding enabled or some tax type
-        const salesWithWithholding = parsed.filter(
-          (row: any) =>
-            row.type === "Sales" && (parseNum(row.ewt) > 0 || row.ewtSelect),
-        );
-        setSalesLedgerEntries(salesWithWithholding);
-      }
-    } catch (e) {
-      console.error("Failed to load sales ledger for BIR 2307", e);
-    }
-
-    // Auto-fill Payee info from Company Config
-    try {
-      const companyStored = localStorage.getItem("stratify_company_config");
-      if (companyStored) {
-        const company = JSON.parse(companyStored);
-        setPayee({
-          tin: company.tin || "",
-          name: company.name || "",
-          address: company.address || "",
-          zip: company.zip || "",
-        });
-      }
-    } catch (e) {
-      console.error("Failed to load company config for BIR 2307", e);
-    }
+    loadMappingAndTemplate();
   }, []);
 
-  const addTransaction = () => {
-    setTransactions([
-      ...transactions,
-      { atc: "WI158", m1: "", m2: "", m3: "", rate: "2" },
-    ]);
+  const handleSaveSignature = async (sigBase64: string) => {
+    setSignature(sigBase64);
+    await syncConfigToFirebase("authorized_signature", sigBase64);
+    showToast("Master signature updated and synced.", "success");
   };
 
-  const updateTransaction = (index: number, field: string, value: string) => {
-    const newTrans = [...transactions];
-    newTrans[index][field] = value;
-    setTransactions(newTrans);
-  };
-
-  const removeTransaction = (index: number) => {
-    const newTrans = [...transactions];
-    newTrans.splice(index, 1);
-    if (newTrans.length === 0) {
-      newTrans.push({ atc: "WI158", m1: "", m2: "", m3: "", rate: "2" });
+  const handleClearAllRecords = async () => {
+    if (!currentTenant?.id || !window.confirm("CRITICAL: This will permanently delete ALL 2307 records for this tenant. Proceed?")) return;
+    try {
+      const batchDelete = forms.map(f => deleteDoc(doc(db, `tenants/${currentTenant.id}/forms2307/${f.id}`)));
+      await Promise.all(batchDelete);
+      showToast("All records cleared successfully.", "info");
+    } catch (e) {
+      showToast("Error clearing records.", "error");
     }
-    setTransactions(newTrans);
   };
 
-  const handleClear = () => {
+  useEffect(() => {
+    if (!currentTenant?.id) return;
+    const q = query(collection(db, `tenants/${currentTenant.id}/forms2307`));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Form2307Record));
+      setForms(docs.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")));
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
+  }, [currentTenant?.id]);
+
+  const resetBuilder = () => {
+    setActiveForm(null);
+    setPayee({ tin: "", name: "", address: "", zip: "" });
+    setPayor({ 
+      tin: currentTenant?.tin || "", 
+      name: currentTenant?.name || "", 
+      address: currentTenant?.address || "", 
+      zip: "" 
+    });
     setPeriodFrom("");
     setPeriodTo("");
-    setPayee({ tin: "", name: "", address: "", zip: "" });
-    setPayor({ tin: "", name: "", address: "", zip: "" });
     setTransactions([{ atc: "WI158", m1: "", m2: "", m3: "", rate: "2" }]);
+    setPdfPreviewUrl(null);
+  };
 
-    // Reload company payee as default
+  const handleEdit = (form: Form2307Record) => {
+    setActiveForm(form);
+    setPayee({ tin: form.payeeTin, name: form.payeeName, address: form.payeeAddress, zip: form.payeeZip || "" });
+    setPayor({ tin: form.payorTin, name: form.payorName, address: form.payorAddress, zip: form.payorZip || "" });
+    setPeriodFrom(form.periodFrom);
+    setPeriodTo(form.periodTo);
     try {
-      const companyStored = localStorage.getItem("stratify_company_config");
-      if (companyStored) {
-        const company = JSON.parse(companyStored);
-        setPayee({
-          tin: company.tin || "",
-          name: company.name || "",
-          address: company.address || "",
-          zip: company.zip || "",
-        });
-      }
-    } catch (e) {}
+      setTransactions(JSON.parse(form.transactions));
+    } catch (e) {
+      setTransactions([{ atc: "WI158", m1: "", m2: "", m3: "", rate: "2" }]);
+    }
+    setShowModal(true);
   };
 
-  // Import a posted sales entry in 1 click!
-  const handleImportSalesEntry = (entry: any) => {
-    // Set Period Covered based on transaction month/year
-    const dateObj = new Date(entry.date);
-    const y = dateObj.getFullYear() || new Date().getFullYear();
-    const m = dateObj.getMonth(); // 0-11
-
-    // Estimate quarter range
-    let startMonth = "01";
-    let endMonth = "03";
-    if (m >= 3 && m <= 5) {
-      startMonth = "04";
-      endMonth = "06";
-    } else if (m >= 6 && m <= 8) {
-      startMonth = "07";
-      endMonth = "09";
-    } else if (m >= 9 && m <= 11) {
-      startMonth = "10";
-      endMonth = "12";
+  const handleSaveForm = async () => {
+    if (!currentTenant?.id) return;
+    if (!payee.tin || !payee.name) {
+      showToast("Payee TIN and Name are required.", "warning");
+      return;
     }
 
-    setPeriodFrom(`${startMonth}/01/${y}`);
-    setPeriodTo(`${endMonth}/30/${y}`);
-
-    // Set Payor (Customer who withheld tax from us)
-    setPayor({
-      tin: entry.tin || "000-000-000-000",
-      name: entry.payor || "General Client",
-      address: entry.address || "Metro Manila, Philippines",
-      zip: "1000",
-    });
-
-    // Determine ATC based on Goods vs Services or custom selections
-    const isGoods = entry.itemType === "Goods";
-    const ratePercentage = entry.ewtRateSelect
-      ? entry.ewtRateSelect.replace("%", "")
-      : "2";
-    const atcCode = isGoods ? "WI157" : "WI158";
-
-    // Disperse Net taxable base into month columns
-    const grossVal = parseNum(entry.gross);
-    let netVal = grossVal;
-    if (entry.taxType === "Vatable") {
-      netVal = r2(grossVal / 1.12);
-    }
-
-    // Clear transaction array and fill with imported numbers
-    const positionInQuarter = m % 3; // 0, 1, or 2 representing 1st, 2nd, 3rd month
-    setTransactions([
-      {
-        atc: atcCode,
-        m1: positionInQuarter === 0 ? netVal.toString() : "",
-        m2: positionInQuarter === 1 ? netVal.toString() : "",
-        m3: positionInQuarter === 2 ? netVal.toString() : "",
-        rate: ratePercentage,
-      },
-    ]);
-
-    setShowImportList(false);
-  };
-
-  const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        setSignature(result);
-        localStorage.setItem("stratify_2307_signature", result);
+    try {
+      const formData: any = {
+        payeeTin: payee.tin,
+        payeeName: payee.name,
+        payeeAddress: payee.address,
+        payeeZip: payee.zip,
+        payorTin: payor.tin,
+        payorName: payor.name,
+        payorAddress: payor.address,
+        payorZip: payor.zip,
+        periodFrom,
+        periodTo,
+        transactions: JSON.stringify(transactions),
+        status: activeForm?.status || 'Draft',
+        tenantId: currentTenant.id,
+        createdAt: activeForm?.createdAt || new Date().toISOString(),
       };
-      reader.readAsDataURL(file);
+
+      if (activeForm?.id) {
+        await updateDoc(doc(db, `tenants/${currentTenant.id}/forms2307/${activeForm.id}`), formData);
+        showToast("Form updated.", "success");
+      } else {
+        await addDoc(collection(db, `tenants/${currentTenant.id}/forms2307`), formData);
+        showToast("Form saved.", "success");
+      }
+      setShowModal(false);
+      resetBuilder();
+    } catch (e) {
+      showToast("Error saving form.", "error");
     }
   };
 
-  const removeSignature = () => {
-    setSignature(null);
-    localStorage.removeItem("stratify_2307_signature");
+  const handleDelete = async (id: string) => {
+    if (!currentTenant?.id || !window.confirm("Delete this form?")) return;
+    try {
+      await deleteDoc(doc(db, `tenants/${currentTenant.id}/forms2307/${id}`));
+      showToast("Deleted.", "info");
+    } catch (e) {
+      showToast("Error.", "error");
+    }
   };
 
   const handleTemplateUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!isAdmin) return;
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = async (event) => {
-        const result = event.target?.result as ArrayBuffer;
-        setMasterTemplate(result);
-        
-        // Sync to Firebase for all tenants to use
-        const base64 = arrayBufferToBase64(result);
-        await syncConfigToFirebase("bir_2307_master_template", base64);
-        
-        showToast("Master Template uploaded and synced globally.", "success");
+        const buffer = event.target?.result as ArrayBuffer;
+        setMasterTemplate(buffer);
+        const base64 = arrayBufferToBase64(buffer);
+        await syncConfigToFirebase("bir_2307_master_pdf_template", base64);
+        showToast("Master PDF uploaded.", "success");
       };
       reader.readAsArrayBuffer(file);
     }
   };
 
   const handleMappingChange = async (newMapping: any) => {
-    if (!isAdmin) return;
-    setExcelMapping(newMapping);
-    await syncConfigToFirebase("bir_2307_mapping", JSON.stringify(newMapping));
+    setPdfMapping(newMapping);
+    await syncConfigToFirebase("bir_2307_pdf_mapping", newMapping);
+    showToast("Mapping saved.", "success");
   };
 
-  const calculateTotal = (t: any) => {
-    const m1 = parseFloat(t.m1) || 0;
-    const m2 = parseFloat(t.m2) || 0;
-    const m3 = parseFloat(t.m3) || 0;
-    return m1 + m2 + m3;
-  };
+  const generatePdf = async (form: Form2307Record, download = false) => {
+    if (!masterTemplate) {
+      showToast("No master template uploaded.", "error");
+      return;
+    }
 
-  const calculateTax = (t: any) => {
-    const total = calculateTotal(t);
-    const rate = parseFloat(t.rate) || 0;
-    return total * (rate / 100);
-  };
-
-  // Compute Grand Totals
-  const grandTotals = useMemo(() => {
-    let m1Tot = 0,
-      m2Tot = 0,
-      m3Tot = 0,
-      netTot = 0,
-      taxTot = 0;
-    transactions.forEach((t) => {
-      m1Tot += parseFloat(t.m1) || 0;
-      m2Tot += parseFloat(t.m2) || 0;
-      m3Tot += parseFloat(t.m3) || 0;
-      const total = calculateTotal(t);
-      netTot += total;
-      taxTot += total * ((parseFloat(t.rate) || 0) / 100);
-    });
-    return { m1Tot, m2Tot, m3Tot, netTot, taxTot };
-  }, [transactions]);
-
-  const generateExcel = async () => {
     try {
-      const workbook = new ExcelJS.Workbook();
-      let worksheet;
+      const pdfDoc = await PDFDocument.load(masterTemplate);
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const fontSize = 8;
+      const pages = pdfDoc.getPages();
+      const page = pages[0];
 
-      if (masterTemplate) {
-        await workbook.xlsx.load(masterTemplate);
-        worksheet = workbook.worksheets[0]; // Assume first sheet
-        
-        // Map basic info using coordinates
-        worksheet.getCell(excelMapping.payeeTin).value = payee.tin;
-        worksheet.getCell(excelMapping.payeeName).value = payee.name;
-        worksheet.getCell(excelMapping.payeeAddress).value = payee.address;
-        worksheet.getCell(excelMapping.payorTin).value = payor.tin;
-        worksheet.getCell(excelMapping.payorName).value = payor.name;
-        worksheet.getCell(excelMapping.payorAddress).value = payor.address;
-        
-        // Mapping transactions is harder as they are rows. 
-        // We'll assume they start at a certain row or just use the default logic if it's complex.
-        showToast("Generating from Master Template with your custom mappings...", "info");
+      const draw = (text: string | undefined, coord: { x: number, y: number }) => {
+        if (!text) return;
+        page.drawText(text, { x: coord.x, y: coord.y, size: fontSize, font, color: rgb(0, 0, 0) });
+      };
+
+      draw(form.payeeTin, pdfMapping.payeeTin);
+      draw(form.payeeName, pdfMapping.payeeName);
+      draw(form.payeeAddress, pdfMapping.payeeAddress);
+      draw(form.payorTin, pdfMapping.payorTin);
+      draw(form.payorName, pdfMapping.payorName);
+      draw(form.payorAddress, pdfMapping.payorAddress);
+      draw(form.periodFrom, pdfMapping.periodFrom);
+      draw(form.periodTo, pdfMapping.periodTo);
+
+      const txs = JSON.parse(form.transactions);
+      txs.forEach((tx: any, i: number) => {
+        const y = pdfMapping.transStartRow - (i * pdfMapping.transRowHeight);
+        draw(tx.atc, { x: 50, y });
+        draw(formatCurrency(parseNum(tx.m1)), { x: 400, y });
+        draw(`${tx.rate}%`, { x: 480, y });
+        const tax = parseNum(tx.m1) * (parseNum(tx.rate) / 100);
+        draw(formatCurrency(tax), { x: 550, y });
+      });
+
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+
+      if (download) {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `2307_${form.payeeName}.pdf`;
+        link.click();
       } else {
-        worksheet = workbook.addWorksheet("BIR_2307");
-        // Default layout if no template
-        worksheet.addRow(["BIR FORM 2307 - Certificate of Creditable Tax Withheld at Source"]);
-        worksheet.addRow([]);
-        worksheet.addRow(["For the Period From:", periodFrom, "To:", periodTo]);
-        worksheet.addRow([]);
-        worksheet.addRow(["PART I - PAYEE INFORMATION"]);
-        worksheet.addRow(["TIN:", payee.tin]);
-        worksheet.addRow(["Name:", payee.name]);
-        worksheet.addRow(["Address:", payee.address]);
-        worksheet.addRow(["ZIP Code:", payee.zip]);
-        worksheet.addRow([]);
-        worksheet.addRow(["PART II - PAYOR INFORMATION"]);
-        worksheet.addRow(["TIN:", payor.tin]);
-        worksheet.addRow(["Name:", payor.name]);
-        worksheet.addRow(["Address:", payor.address]);
-        worksheet.addRow(["ZIP Code:", payor.zip]);
-        worksheet.addRow([]);
-        worksheet.addRow(["PART III - DETAILS OF MONTHLY INCOME PAYMENTS AND TAXES WITHHELD"]);
-        worksheet.addRow(["ATC", "1st Month Amount", "2nd Month Amount", "3rd Month Amount", "Total Amount", "Tax Rate (%)", "Tax Withheld"]);
-        
-        transactions.forEach((t) => {
-          const m1 = parseFloat(t.m1) || 0;
-          const m2 = parseFloat(t.m2) || 0;
-          const m3 = parseFloat(t.m3) || 0;
-          const rate = parseFloat(t.rate) || 0;
-          const totalAmount = m1 + m2 + m3;
-          const taxWithheld = totalAmount * (rate / 100);
-          worksheet.addRow([t.atc, m1, m2, m3, totalAmount, rate, taxWithheld]);
-        });
+        setPdfPreviewUrl(url);
       }
-
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `BIR_2307_${payee.name || "Payee"}_${periodFrom.replace(/\//g, "-") || "Period"}.xlsx`;
-      anchor.click();
-      window.URL.revokeObjectURL(url);
-      showToast("Excel Generated successfully.", "success");
-    } catch (error) {
-      console.error(error);
-      showToast("Failed to generate Excel.", "error");
+    } catch (e) {
+      showToast("Error generating PDF.", "error");
     }
   };
 
-  const generatePDF = () => {
-    const element = document.getElementById("bir-2307-sheet");
-    if (!element) return;
-
-    const opt = {
-      margin: 0,
-      filename: `BIR_2307_${payee.name || "Payee"}_${periodFrom.replace(/\//g, "-") || "Period"}.pdf`,
-      image: { type: "jpeg" as const, quality: 1.0 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF: { unit: "in" as const, format: "letter", orientation: "portrait" as const },
-    };
-
-    html2pdf().set(opt).from(element).save();
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  // Helper to split string values into boxes
-  const renderTinSquares = (tinString: string) => {
-    const cleanTin = (tinString || "").replace(/[^0-9]/g, "").padEnd(12, " ");
-    const parts = [
-      cleanTin.slice(0, 3),
-      cleanTin.slice(3, 6),
-      cleanTin.slice(6, 9),
-      cleanTin.slice(9, 12),
-    ];
-    return (
-      <div className="flex items-center gap-1">
-        {parts.map((part, partIdx) => (
-          <div
-            key={partIdx}
-            className="flex border border-zinc-950 bg-white divide-x divide-zinc-950 h-5"
-          >
-            {part.split("").map((char, idx) => (
-              <div
-                key={idx}
-                className="w-3.5 h-full flex items-center justify-center font-mono text-[10px] font-extrabold text-zinc-950"
-              >
-                {char}
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+  const filteredForms = useMemo(() => {
+    return forms.filter(f => 
+      (f.payeeName || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (f.payeeTin || "").includes(searchTerm)
     );
+  }, [forms, searchTerm]);
+
+  const handlePrint = (form: Form2307Record) => {
+    // Set active form temporarily to render the sheet
+    setActiveForm(form);
+    setPayee({ tin: form.payeeTin, name: form.payeeName, address: form.payeeAddress, zip: form.payeeZip || "" });
+    setPayor({ tin: form.payorTin, name: form.payorName, address: form.payorAddress, zip: form.payorZip || "" });
+    setPeriodFrom(form.periodFrom);
+    setPeriodTo(form.periodTo);
+    try {
+      setTransactions(JSON.parse(form.transactions));
+    } catch (e) {
+      setTransactions([]);
+    }
+
+    // Wait for state to update and render
+    setTimeout(() => {
+      window.print();
+    }, 500);
   };
+
+  const grandTotals = useMemo(() => {
+    const m1 = transactions.reduce((acc, tx) => acc + parseNum(tx.m1), 0);
+    const tax = transactions.reduce((acc, tx) => acc + (parseNum(tx.m1) * (parseNum(tx.rate) / 100)), 0);
+    return { m1Tot: m1, m2Tot: 0, m3Tot: 0, netTot: m1, taxTot: tax };
+  }, [transactions]);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
-      {/* HEADER CONTROLS */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 no-print bg-zinc-50 dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
-        <div>
-          <h2 className="text-xl font-black text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-            <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-            BIR Form 2307 Generator
-          </h2>
-          <p className="text-xs text-zinc-500 font-medium">
-            Create, import, and print high-fidelity Philippine Form 2307
-            certificates
-          </p>
+    <div className="space-y-6">
+      {/* Header View: Dashboard Look */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center">
+            <FileText className="w-6 h-6 text-blue-600" />
+          </div>
+          <div>
+            <h1 className="text-xl font-extrabold text-zinc-900 dark:text-white tracking-tight">Form 2307 File Dashboard</h1>
+            <p className="text-xs text-zinc-500 font-medium">Official Certificate of Creditable Tax Withheld</p>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {isAdmin && (
-            <div className="relative">
-              <input
-                type="file"
-                id="excel-import"
-                className="hidden"
-                accept=".xlsx"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onload = async (event) => {
-                      const buffer = event.target?.result as ArrayBuffer;
-                      const workbook = new ExcelJS.Workbook();
-                      await workbook.xlsx.load(buffer);
-                      const worksheet = workbook.getWorksheet(1);
-                      if (!worksheet) return;
 
-                      const importedTransactions: Transaction[] = [];
-                      worksheet.eachRow((row, rowNumber) => {
-                        if (rowNumber > 1) { // Skip header
-                          const atc = row.getCell(1).value?.toString() || "";
-                          const description = row.getCell(2).value?.toString() || "";
-                          const income = parseNum(row.getCell(3).value?.toString() || "0");
-                          const taxRate = parseNum(row.getCell(4).value?.toString() || "1"); // Default 1%
-                          
-                          if (atc && description) {
-                            importedTransactions.push({
-                              id: Date.now() + rowNumber,
-                              atc,
-                              description,
-                              income,
-                              taxRate,
-                              tax: (income * taxRate) / 100,
-                            });
-                          }
-                        }
-                      });
-                      setTransactions([...transactions, ...importedTransactions]);
-                      showToast(`Imported ${importedTransactions.length} transactions from Excel.`, 'success');
-                    };
-                    reader.readAsArrayBuffer(file);
-                  }
-                }}
-              />
-              <button
-                onClick={() => document.getElementById('excel-import')?.click()}
-                className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 font-bold text-xs rounded-xl shadow-sm border border-indigo-200/50 hover:bg-indigo-100 dark:hover:bg-indigo-950 transition-colors"
-              >
-                <Import className="w-4 h-4" />
-                Import Excel (Admin)
-              </button>
-            </div>
-          )}
-          {salesLedgerEntries.length > 0 && (
-            <button
-              onClick={() => setShowImportList(!showImportList)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 font-bold text-xs rounded-xl shadow-sm border border-emerald-200/50 hover:bg-emerald-100 dark:hover:bg-emerald-950 transition-colors"
-            >
-              <Import className="w-4 h-4" />
-              Import Sales ({salesLedgerEntries.length})
-            </button>
-          )}
-          <button
-            onClick={handleClear}
-            className="flex items-center gap-1.5 px-3 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-bold text-xs rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors border border-zinc-200 dark:border-zinc-700"
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => { resetBuilder(); setShowModal(true); }}
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-bold text-xs rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20"
           >
-            <RefreshCw className="w-4 h-4" />
-            Reset
-          </button>
-          <button
-            onClick={generateExcel}
-            className="flex items-center gap-1.5 px-3 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-bold text-xs rounded-xl hover:opacity-90 transition-opacity"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            Excel
-          </button>
-          <button
-            onClick={generatePDF}
-            className="flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-500 transition-colors shadow-md shadow-red-500/10"
-          >
-            <Download className="w-4 h-4" />
-            PDF
-          </button>
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white font-bold text-xs rounded-xl hover:bg-blue-500 transition-colors shadow-md shadow-blue-500/10"
-          >
-            <Printer className="w-4 h-4" />
-            Print 2307
+            <Plus className="w-4 h-4" />
+            New 2307 Entry
           </button>
         </div>
       </div>
 
-      {/* IMPORT DRAWER */}
-      {showImportList && (
-        <div className="no-print bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 space-y-3 animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="flex justify-between items-center border-b border-zinc-200 dark:border-zinc-800 pb-2">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-emerald-500" />
-              Posted Sales Ledger Entries with BIR 2307
-            </h3>
-            <button
-              onClick={() => setShowImportList(false)}
-              className="text-[10px] font-bold text-zinc-400 hover:text-zinc-600"
-            >
-              Close
-            </button>
+      {/* Main Records List */}
+      <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
+        <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-4">
+          <div className="relative max-w-sm w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+            <input 
+              type="text" 
+              placeholder="Search by payee name or tin..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-1">
-            {salesLedgerEntries.map((row) => (
-              <div
-                key={row.id}
-                onClick={() => handleImportSalesEntry(row)}
-                className="cursor-pointer bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-emerald-500 hover:ring-1 hover:ring-emerald-500 p-3 rounded-xl transition-all space-y-1.5"
-              >
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-mono text-zinc-400">
-                    {row.date}
-                  </span>
-                  <span className="text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded">
-                    SI-{row.id.toString().slice(-4)}
-                  </span>
+          <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-4">
+            Total Records: {filteredForms.length}
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-zinc-50 dark:bg-zinc-950/50">
+                <th className="px-6 py-4 text-[10px] font-extrabold text-zinc-500 uppercase tracking-widest">Payee / Recipient</th>
+                <th className="px-6 py-4 text-[10px] font-extrabold text-zinc-500 uppercase tracking-widest">Reporting Period</th>
+                <th className="px-6 py-4 text-[10px] font-extrabold text-zinc-500 uppercase tracking-widest text-right">Tax Base</th>
+                <th className="px-6 py-4 text-[10px] font-extrabold text-zinc-500 uppercase tracking-widest text-center">Status</th>
+                <th className="px-6 py-4 text-[10px] font-extrabold text-zinc-500 uppercase tracking-widest text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              {isLoading ? (
+                <tr><td colSpan={5} className="p-12 text-center text-zinc-500 italic text-xs">Loading records from cloud...</td></tr>
+              ) : filteredForms.length === 0 ? (
+                <tr><td colSpan={5} className="p-12 text-center text-zinc-500 italic text-xs">No records found. Click 'New 2307 Entry' to start.</td></tr>
+              ) : (
+                filteredForms.map((f) => {
+                  const txList = JSON.parse(f.transactions || "[]");
+                  const total = txList.reduce((acc: any, cur: any) => acc + parseNum(cur.m1), 0);
+                  return (
+                    <tr key={f.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-950/50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-zinc-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center">
+                            <Building className="w-4 h-4 text-zinc-500" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-zinc-900 dark:text-white leading-none mb-1">{f.payeeName}</div>
+                            <div className="text-[10px] text-zinc-500 font-mono tracking-tighter">{f.payeeTin}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-xs text-zinc-600 dark:text-zinc-400">
+                        {f.periodFrom ? format(new Date(f.periodFrom), 'MMM d, yyyy') : 'N/A'} - {f.periodTo ? format(new Date(f.periodTo), 'MMM d, yyyy') : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 text-xs font-bold text-right text-zinc-900 dark:text-white">
+                        {formatCurrency(total)}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                          f.status === 'Imported' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {f.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => handleEdit(f)} title="View/Edit" className="p-2 text-zinc-400 hover:text-blue-500 transition-colors hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg">
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handlePrint(f)} title="Print 2307" className="p-2 text-zinc-400 hover:text-indigo-600 transition-colors hover:bg-indigo-50 dark:hover:bg-indigo-950/30 rounded-lg">
+                            <Printer className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => generatePdf(f, true)} title="Download PDF" className="p-2 text-zinc-400 hover:text-emerald-600 transition-colors hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg">
+                            <Download className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDelete(f.id!)} title="Delete" className="p-2 text-zinc-400 hover:text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Admin Advanced View */}
+      {isAdmin && (
+        <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
+          <button 
+            onClick={() => setShowMapping(!showMapping)}
+            className="w-full px-6 py-4 flex items-center justify-between text-xs font-bold text-zinc-500 uppercase tracking-widest bg-zinc-50 dark:bg-zinc-950/50 hover:bg-zinc-100 dark:hover:bg-zinc-950 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Settings className="w-4 h-4" />
+              Developer & Mapping Settings
+            </div>
+            <ChevronRight className={`w-4 h-4 transition-transform ${showMapping ? 'rotate-90' : ''}`} />
+          </button>
+          {showMapping && (
+            <div className="p-6 border-t border-zinc-100 dark:border-zinc-800 space-y-8 animate-in slide-in-from-top-2 duration-300">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <h3 className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                      <CreditCard className="w-3.5 h-3.5" /> 1. Master Authorized Signature
+                    </h3>
+                    <div className={`border-2 border-dashed rounded-3xl p-6 text-center transition-all ${signature ? 'border-indigo-500/50 bg-indigo-500/5' : 'border-zinc-200 dark:border-zinc-800 hover:border-indigo-500/50'}`}>
+                      <input 
+                        type="file" 
+                        id="master-sig-upload" 
+                        className="hidden" 
+                        accept="image/*" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.readAsDataURL(file);
+                            reader.onload = () => handleSaveSignature(reader.result as string);
+                          }
+                        }} 
+                      />
+                      <div className="flex flex-col items-center gap-3">
+                        {signature ? (
+                          <img src={signature} alt="Master Signature" className="h-12 object-contain mb-1" />
+                        ) : (
+                          <div className="w-12 h-12 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center">
+                            <Plus className="w-6 h-6 text-zinc-300" />
+                          </div>
+                        )}
+                        <button onClick={() => document.getElementById('master-sig-upload')?.click()} className="text-xs font-bold text-indigo-600 hover:underline">
+                          {signature ? 'Replace Master Signature' : 'Upload Admin Signature'}
+                        </button>
+                        <p className="text-[9px] text-zinc-400 font-medium px-4">This signature will be applied to ALL generated tax forms and sales proposals.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                    <button 
+                      onClick={handleClearAllRecords}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[10px] uppercase tracking-widest rounded-2xl transition-all border border-red-100"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Clear All Database Records
+                    </button>
+                  </div>
                 </div>
-                <div className="font-bold text-xs text-zinc-800 dark:text-zinc-100 truncate">
-                  {row.payor}
-                </div>
-                <div className="flex justify-between text-[11px]">
-                  <span className="text-zinc-500">
-                    Gross: ₱{formatCurrency(parseNum(row.gross))}
-                  </span>
-                  <span className="font-extrabold text-emerald-600">
-                    Tax: ₱{formatCurrency(parseNum(row.ewt))}
-                  </span>
+
+                <div className="bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl p-6 border border-zinc-100 dark:border-zinc-800 flex flex-col justify-center">
+                  <h4 className="text-[10px] font-black uppercase text-zinc-400 mb-4 tracking-widest">System Engine Status</h4>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase">Native Printing: Active</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                      <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase">Cloud Sync: Connected</span>
+                    </div>
+                    <p className="text-[9px] text-zinc-400 font-medium leading-relaxed">
+                      The system is currently using native HTML-to-PDF rendering. This ensures that the printed document matches the digital preview perfectly.
+                    </p>
+                  </div>
                 </div>
               </div>
-            ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal: Center Focused Builder */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-zinc-200 dark:border-zinc-800 scale-in-center animate-in zoom-in-95 duration-300">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-950/50">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-blue-500 rounded-xl flex items-center justify-center">
+                  <FileCheck2 className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest">
+                    {activeForm ? 'Record Details & Export' : 'Generate New 2307 Certificate'}
+                  </h2>
+                  <p className="text-[10px] text-zinc-500 font-medium">Certification of Creditable Tax Withheld</p>
+                </div>
+              </div>
+              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-full transition-colors">
+                <X className="w-5 h-5 text-zinc-400" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="space-y-8">
+                {/* 1. Payee */}
+                <div className="space-y-4">
+                  <h3 className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                    <Building className="w-3.5 h-3.5" /> 1. Payee / Income Recipient
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="group">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase px-1 mb-1 block">TIN (Taxpayer ID)</label>
+                      <input type="text" placeholder="000-000-000-000" value={payee.tin} onChange={e => setPayee({...payee, tin: e.target.value})} className="w-full text-xs p-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20" />
+                    </div>
+                    <div className="group">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase px-1 mb-1 block">Registered Name</label>
+                      <input type="text" placeholder="Full legal name" value={payee.name} onChange={e => setPayee({...payee, name: e.target.value})} className="w-full text-xs p-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20" />
+                    </div>
+                    <div className="group">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase px-1 mb-1 block">Registered Address</label>
+                      <input type="text" placeholder="Business address" value={payee.address} onChange={e => setPayee({...payee, address: e.target.value})} className="w-full text-xs p-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Period */}
+                <div className="space-y-4">
+                  <h3 className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                    <Calendar className="w-3.5 h-3.5" /> 2. Inclusive Dates
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="group">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase px-1 mb-1 block">From</label>
+                      <input type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)} className="w-full text-xs p-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20" />
+                    </div>
+                    <div className="group">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase px-1 mb-1 block">To</label>
+                      <input type="date" value={periodTo} onChange={e => setPeriodTo(e.target.value)} className="w-full text-xs p-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Transactions */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                      <CreditCard className="w-3.5 h-3.5" /> 3. Income & Tax Details
+                    </h3>
+                    <button onClick={() => setTransactions([...transactions, { atc: "", m1: "", m2: "", m3: "", rate: "" }])} className="text-[10px] font-bold text-blue-600 hover:underline">Add ATC Row</button>
+                  </div>
+                  <div className="space-y-3">
+                    {transactions.map((tx, i) => (
+                      <div key={i} className="flex gap-3 p-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl items-center relative group">
+                        <div className="flex-1">
+                          <label className="text-[8px] font-bold text-zinc-400 uppercase">ATC</label>
+                          <input type="text" placeholder="WI158" value={tx.atc} onChange={e => {const n=[...transactions]; n[i].atc=e.target.value; setTransactions(n)}} className="w-full text-[10px] bg-transparent outline-none font-bold" />
+                        </div>
+                        <div className="flex-[2]">
+                          <label className="text-[8px] font-bold text-zinc-400 uppercase">Taxable Income</label>
+                          <input type="text" placeholder="0.00" value={tx.m1} onChange={e => {const n=[...transactions]; n[i].m1=e.target.value; setTransactions(n)}} className="w-full text-[10px] bg-transparent outline-none text-right font-bold" />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[8px] font-bold text-zinc-400 uppercase">Rate %</label>
+                          <input type="text" placeholder="2" value={tx.rate} onChange={e => {const n=[...transactions]; n[i].rate=e.target.value; setTransactions(n)}} className="w-full text-[10px] bg-transparent outline-none text-center font-bold" />
+                        </div>
+                        <button onClick={() => setTransactions(transactions.filter((_, idx) => idx !== i))} className="p-1.5 text-zinc-300 hover:text-red-500 transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* PDF Preview Sidebar */}
+              <div className="flex flex-col gap-6">
+                <div className="flex-1 bg-zinc-100 dark:bg-zinc-950 rounded-[32px] border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-inner flex flex-col relative min-h-[500px]">
+                  {pdfPreviewUrl ? (
+                    <iframe src={pdfPreviewUrl} className="w-full h-full" title="PDF Preview" />
+                  ) : (
+                    <div className="flex-1 overflow-auto p-4 scale-[0.6] origin-top bg-zinc-100 dark:bg-zinc-950 scrollbar-hide">
+                      <Form2307Sheet 
+                        payee={payee} 
+                        payor={payor} 
+                        periodFrom={periodFrom} 
+                        periodTo={periodTo} 
+                        transactions={transactions} 
+                        grandTotals={grandTotals}
+                        signature={signature}
+                      />
+                    </div>
+                  )}
+                  {!pdfPreviewUrl && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/5 backdrop-blur-[1px] pointer-events-none">
+                      <div className="bg-zinc-900/90 text-white text-[10px] font-bold px-5 py-2 rounded-full shadow-2xl flex items-center gap-2">
+                        <Eye className="w-3.5 h-3.5" />
+                        Live Sheet Rendering
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <button 
+                    onClick={async () => {
+                      await handleSaveForm();
+                      handlePrint({
+                        payeeTin: payee.tin, payeeName: payee.name, payeeAddress: payee.address, payeeZip: payee.zip,
+                        payorTin: payor.tin, payorName: payor.name, payorAddress: payor.address, payorZip: payor.zip,
+                        periodFrom, periodTo, transactions: JSON.stringify(transactions),
+                        status: 'Draft', tenantId: currentTenant?.id || "", createdAt: ""
+                      });
+                    }} 
+                    className="py-4 bg-zinc-900 text-white text-xs font-bold rounded-2xl hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 shadow-xl shadow-zinc-900/20"
+                  >
+                    <Printer className="w-4 h-4" />
+                    Save & Print
+                  </button>
+                  <button 
+                    onClick={() => generatePdf({
+                      payeeTin: payee.tin, payeeName: payee.name, payeeAddress: payee.address, payeeZip: payee.zip,
+                      payorTin: payor.tin, payorName: payor.name, payorAddress: payor.address, payorZip: payor.zip,
+                      periodFrom, periodTo, transactions: JSON.stringify(transactions),
+                      status: 'Draft', tenantId: currentTenant?.id || "", createdAt: ""
+                    }, true)} 
+                    className="py-4 bg-blue-600 text-white text-xs font-bold rounded-2xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download PDF
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* SPLIT VIEW (EDITOR & PREVIEW) */}
-      <div className={`grid grid-cols-1 lg:grid-cols-12 gap-6 items-start`}>
-        {/* FORM INPUTS PANEL */}
-        <div className="lg:col-span-4 space-y-5 no-print bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm">
-          <div>
-            <h3 className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest mb-3">
-              1. Period Covered
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-zinc-500">
-                  From (MM/DD/YYYY)
-                </label>
-                <input
-                  type="text"
-                  value={periodFrom}
-                  onChange={(e) => setPeriodFrom(e.target.value)}
-                  placeholder="01/01/2026"
-                  className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-zinc-500">
-                  To (MM/DD/YYYY)
-                </label>
-                <input
-                  type="text"
-                  value={periodTo}
-                  onChange={(e) => setPeriodTo(e.target.value)}
-                  placeholder="03/31/2026"
-                  className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          <hr className="border-zinc-100 dark:border-zinc-800" />
-
-          <div>
-            <h3 className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest mb-3">
-              2. Payee Information (Recipient)
-            </h3>
-            <div className="space-y-3 text-left">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-zinc-500">
-                  TIN
-                </label>
-                <input
-                  type="text"
-                  value={payee.tin}
-                  onChange={(e) => setPayee({ ...payee, tin: e.target.value })}
-                  placeholder="000-000-000-000"
-                  className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-zinc-500">
-                  Registered Corporate Name
-                </label>
-                <input
-                  type="text"
-                  value={payee.name}
-                  onChange={(e) => setPayee({ ...payee, name: e.target.value })}
-                  placeholder="Enterprise Name"
-                  className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2 space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-zinc-500">
-                    Address
-                  </label>
-                  <input
-                    type="text"
-                    value={payee.address}
-                    onChange={(e) =>
-                      setPayee({ ...payee, address: e.target.value })
-                    }
-                    placeholder="Registered Office Address"
-                    className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-zinc-500">
-                    ZIP Code
-                  </label>
-                  <input
-                    type="text"
-                    value={payee.zip}
-                    onChange={(e) =>
-                      setPayee({ ...payee, zip: e.target.value })
-                    }
-                    placeholder="1000"
-                    className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <hr className="border-zinc-100 dark:border-zinc-800" />
-
-          <div>
-            <h3 className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest mb-3">
-              3. Payor Information (Customer)
-            </h3>
-            <div className="space-y-3 text-left">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-zinc-500">
-                  TIN
-                </label>
-                <input
-                  type="text"
-                  value={payor.tin}
-                  onChange={(e) => setPayor({ ...payor, tin: e.target.value })}
-                  placeholder="000-000-000-000"
-                  className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-zinc-500">
-                  Withholding Agent Name
-                </label>
-                <input
-                  type="text"
-                  value={payor.name}
-                  onChange={(e) => setPayor({ ...payor, name: e.target.value })}
-                  placeholder="Client Corporate Name"
-                  className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2 space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-zinc-500">
-                    Address
-                  </label>
-                  <input
-                    type="text"
-                    value={payor.address}
-                    onChange={(e) =>
-                      setPayor({ ...payor, address: e.target.value })
-                    }
-                    placeholder="Client Registered Address"
-                    className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase text-zinc-500">
-                    ZIP Code
-                  </label>
-                  <input
-                    type="text"
-                    value={payor.zip}
-                    onChange={(e) =>
-                      setPayor({ ...payor, zip: e.target.value })
-                    }
-                    placeholder="1000"
-                    className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <hr className="border-zinc-100 dark:border-zinc-800" />
-
-          <div>
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest">
-                4. Income Taxes Grid
-              </h3>
-              <button
-                onClick={addTransaction}
-                className="text-[10px] font-bold bg-zinc-100 hover:bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 px-2 py-1 rounded"
-              >
-                + Add Line
-              </button>
-            </div>
-            <div className="space-y-4">
-              {transactions.map((t, index) => (
-                <div
-                  key={index}
-                  className="bg-zinc-50 dark:bg-zinc-950/40 p-3 rounded-xl border border-zinc-200/60 dark:border-zinc-800/80 relative space-y-2 text-left"
-                >
-                  {transactions.length > 1 && (
-                    <button
-                      onClick={() => removeTransaction(index)}
-                      className="absolute top-2.5 right-2.5 text-zinc-400 hover:text-red-500"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                  <div className="grid grid-cols-2 gap-2 pr-6">
-                    <div className="space-y-0.5">
-                      <label className="text-[9px] font-bold uppercase text-zinc-500">
-                        ATC Code
-                      </label>
-                      <input
-                        type="text"
-                        value={t.atc}
-                        onChange={(e) =>
-                          updateTransaction(index, "atc", e.target.value)
-                        }
-                        placeholder="WI158"
-                        className="w-full text-xs bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2.5 py-1.5 focus:outline-none"
-                      />
-                    </div>
-                    <div className="space-y-0.5">
-                      <label className="text-[9px] font-bold uppercase text-zinc-500">
-                        Tax Rate (%)
-                      </label>
-                      <input
-                        type="number"
-                        value={t.rate}
-                        onChange={(e) =>
-                          updateTransaction(index, "rate", e.target.value)
-                        }
-                        placeholder="2"
-                        className="w-full text-xs bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2.5 py-1.5 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 pt-1">
-                    <div className="space-y-0.5">
-                      <label className="text-[9px] font-bold text-zinc-400">
-                        1st Month
-                      </label>
-                      <input
-                        type="number"
-                        value={t.m1}
-                        onChange={(e) =>
-                          updateTransaction(index, "m1", e.target.value)
-                        }
-                        placeholder="0.00"
-                        className="w-full text-xs bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1.5 focus:outline-none text-right"
-                      />
-                    </div>
-                    <div className="space-y-0.5">
-                      <label className="text-[9px] font-bold text-zinc-400">
-                        2nd Month
-                      </label>
-                      <input
-                        type="number"
-                        value={t.m2}
-                        onChange={(e) =>
-                          updateTransaction(index, "m2", e.target.value)
-                        }
-                        placeholder="0.00"
-                        className="w-full text-xs bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1.5 focus:outline-none text-right"
-                      />
-                    </div>
-                    <div className="space-y-0.5">
-                      <label className="text-[9px] font-bold text-zinc-400">
-                        3rd Month
-                      </label>
-                      <input
-                        type="number"
-                        value={t.m3}
-                        onChange={(e) =>
-                          updateTransaction(index, "m3", e.target.value)
-                        }
-                        placeholder="0.00"
-                        className="w-full text-xs bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1.5 focus:outline-none text-right"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <hr className="border-zinc-100 dark:border-zinc-800" />
-
-          <div>
-            <h3 className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest mb-3">
-              5. E-Signature Overlay
-            </h3>
-            <div className="space-y-3">
-              {!signature ? (
-                <div className="border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 text-center">
-                  <label className="cursor-pointer group">
-                    <input type="file" accept="image/*" className="hidden" onChange={handleSignatureUpload} />
-                    <Plus className="w-6 h-6 text-zinc-300 group-hover:text-emerald-500 mx-auto mb-2" />
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Upload Authorized Signature</p>
-                    <p className="text-[9px] text-zinc-400 mt-1">Prefer transparent PNG</p>
-                  </label>
-                </div>
-              ) : (
-                <div className="relative bg-zinc-50 dark:bg-zinc-950 p-3 rounded-2xl border border-emerald-500/30">
-                  <img src={signature} alt="Signature" className="h-16 mx-auto object-contain" />
-                  <button 
-                    onClick={removeSignature}
-                    className="absolute -top-2 -right-2 bg-red-100 text-red-600 p-1 rounded-full border border-red-200 hover:bg-red-200"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <hr className="border-zinc-100 dark:border-zinc-800" />
-
-          {isAdmin && (
-            <>
-              <div>
-                <h3 className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest mb-3">
-                  6. Master Excel Template (Admin Only)
-                </h3>
-                <div className="space-y-3">
-                  {!masterTemplate ? (
-                    <div className="border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 text-center">
-                      <label className="cursor-pointer group">
-                        <input type="file" accept=".xlsx" className="hidden" onChange={handleTemplateUpload} />
-                        <FileSpreadsheet className="w-6 h-6 text-zinc-300 group-hover:text-blue-500 mx-auto mb-2" />
-                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Upload Master Template</p>
-                        <p className="text-[9px] text-zinc-400 mt-1">Official BIR 2307 Excel</p>
-                      </label>
-                    </div>
-                  ) : (
-                    <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-2xl border border-blue-500/30 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FileCheck2 className="w-4 h-4 text-blue-500" />
-                        <span className="text-[10px] font-bold text-blue-700 dark:text-blue-400">Template Active</span>
-                      </div>
-                      <button 
-                        onClick={async () => {
-                          setMasterTemplate(null);
-                          await syncConfigToFirebase("bir_2307_master_template", "");
-                          showToast("Template removed globally.", "info");
-                        }}
-                        className="text-blue-400 hover:text-blue-600"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <hr className="border-zinc-100 dark:border-zinc-800" />
-
-              <div>
-                <button 
-                  onClick={() => setShowMapping(!showMapping)}
-                  className="w-full flex items-center justify-between py-2 text-zinc-400 hover:text-zinc-600 transition-colors"
-                >
-                  <h3 className="text-xs font-extrabold uppercase tracking-widest">
-                    7. Excel Template Mapping (Admin Only)
-                  </h3>
-                  <ChevronRight className={`w-4 h-4 transition-transform ${showMapping ? 'rotate-90' : ''}`} />
-                </button>
-                
-                {showMapping && (
-                  <div className="space-y-3 pt-3 animate-in fade-in duration-200">
-                    <p className="text-[10px] text-zinc-500 italic leading-snug">
-                      Define which Excel cells receive the data during automated generation.
-                    </p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-zinc-500 uppercase">Payee TIN Cell</label>
-                        <input 
-                          type="text" 
-                          value={excelMapping.payeeTin} 
-                          onChange={(e) => handleMappingChange({...excelMapping, payeeTin: e.target.value})}
-                          className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1.5"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-zinc-500 uppercase">Payee Name Cell</label>
-                        <input 
-                          type="text" 
-                          value={excelMapping.payeeName} 
-                          onChange={(e) => handleMappingChange({...excelMapping, payeeName: e.target.value})}
-                          className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1.5"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* HIGH FIDELITY BIR FORM 2307 SHEET PREVIEW */}
-        <div className="lg:col-span-8 bg-zinc-150/40 dark:bg-zinc-950/40 p-4 sm:p-6 rounded-3xl border border-zinc-300 dark:border-zinc-800 flex justify-center overflow-x-auto print:bg-white print:border-none print:p-0">
-          {/* THE PRINTABLE SHEET */}
-          <Form2307Sheet
-            periodFrom={periodFrom}
-            periodTo={periodTo}
-            payee={payee}
-            payor={payor}
-            transactions={transactions}
-            grandTotals={grandTotals}
-            signature={signature}
-          />
-        </div>
+      {/* Hidden Print Container */}
+      <div className="hidden print:block fixed inset-0 z-[9999] bg-white w-full h-full p-0 m-0 overflow-visible">
+        <Form2307Sheet 
+          payee={payee} 
+          payor={payor} 
+          periodFrom={periodFrom} 
+          periodTo={periodTo} 
+          transactions={transactions} 
+          grandTotals={grandTotals}
+          signature={signature}
+        />
       </div>
     </div>
   );

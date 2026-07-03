@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Plus, Trash2, Printer, Sparkles, FileText, Settings } from 'lucide-react';
 import { r2, displayMoney, parseNum, cleanDate, formatCurrency } from '../utils/helpers';
+import { loadConfigFromFirebase } from '../lib/db';
 
 interface QuotationBuilderProps {
   showToast: (msg: string, type: 'success' | 'error' | 'info') => void;
@@ -19,12 +20,13 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
   const [vatMode, setVatMode] = useState<'Tax Inclusive' | 'Tax Exclusive' | 'Exempt'>('Tax Inclusive');
 
   const [companyConfig, setCompanyConfig] = useState<any>({
-    companyName: 'STRATIFY (System+Strategy) SALES ERP PLATFORM',
+    companyName: 'STRATIFY (Strategy + Simplify) SALES ERP PLATFORM',
     tin: '009-887-112-000',
     address: 'Ortigas Center, Pasig City, Metro Manila',
     registeredVat: true,
     logoUrl: 'https://i.postimg.cc/5yGwSWWR/1782659487700.png'
   });
+  const [authorizedSignature, setAuthorizedSignature] = useState<string | null>(null);
 
   // Quotation line item form fields
   const [lineDesc, setLineDesc] = useState('');
@@ -33,22 +35,24 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
   const [lineTaxClass, setLineTaxClass] = useState<'Vatable' | 'Exempt' | 'Zero-Rated'>('Vatable');
   const [lineItemType, setLineItemType] = useState<'Goods' | 'Services'>('Goods');
 
-  const [lines, setLines] = useState<any[]>([
-    { id: 1, desc: 'Enterprise Accounting Portal License', qty: 1, price: 45000, taxClass: 'Vatable', itemType: 'Services' },
-    { id: 2, desc: 'Premium Cloud Storage (1TB, 12 Months)', qty: 1, price: 12000, taxClass: 'Vatable', itemType: 'Goods' }
-  ]);
+  const [lines, setLines] = useState<any[]>([]);
 
   const [draftQuotes, setDraftQuotes] = useState<any[]>([]);
 
   React.useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const sig = await loadConfigFromFirebase("authorized_signature");
+        if (sig) setAuthorizedSignature(sig);
+      } catch (e) {}
+    };
+    fetchConfig();
     try {
       const stored = localStorage.getItem('stratify_draft_quotations');
       if (stored) {
         setDraftQuotes(JSON.parse(stored));
       } else {
-        const defaults = [
-          { id: 1, client: 'Acme MegaCorp PH', date: `${new Date().getFullYear()}-06-20`, expiry: `${new Date().getFullYear()}-07-20`, gross: 57000, status: 'Draft' }
-        ];
+        const defaults: any[] = [];
         setDraftQuotes(defaults);
         localStorage.setItem('stratify_draft_quotations', JSON.stringify(defaults));
       }
@@ -402,7 +406,7 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
             </div>
           </div>
           <div className="text-left sm:text-right space-y-1 text-xs">
-            <div className="font-bold text-zinc-900 dark:text-white uppercase">{companyConfig.companyName || 'STRATIFY (System+Strategy) SALES ERP PLATFORM'}</div>
+            <div className="font-bold text-zinc-900 dark:text-white uppercase">{companyConfig.companyName || 'STRATIFY (Strategy + Simplify)'}</div>
             <div className="text-zinc-500">{companyConfig.address || 'Ortigas Center, Pasig City, Metro Manila'}</div>
             <div className="text-zinc-500">TIN: {companyConfig.tin || '009-887-112-000'} {companyConfig.registeredVat ? '• VAT Registered' : ''}</div>
           </div>
@@ -493,8 +497,15 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
               </p>
             </div>
             <div className="pt-4 flex items-center gap-12 text-center sm:text-left">
-              <div className="border-t border-zinc-300 dark:border-zinc-700 pt-3 w-40">
-                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Authorized Signature</span>
+              <div className="border-t border-zinc-300 dark:border-zinc-700 pt-3 w-48 relative">
+                {authorizedSignature && (
+                  <img 
+                    src={authorizedSignature} 
+                    alt="Authorized Signature" 
+                    className="absolute -top-12 left-1/2 -translate-x-1/2 h-20 object-contain mix-blend-multiply" 
+                  />
+                )}
+                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider relative z-10">Authorized Signature</span>
               </div>
               <div className="border-t border-zinc-300 dark:border-zinc-700 pt-3 w-40">
                 <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Client Acceptance</span>

@@ -319,3 +319,21 @@ export interface FinancialReportContext {
   reportRows: any[];
   asOfDate: Date;
 }
+
+export interface Form2307Record {
+  id?: string;
+  payeeTin: string;
+  payeeName: string;
+  payeeAddress: string;
+  payeeZip?: string;
+  payorTin: string;
+  payorName: string;
+  payorAddress: string;
+  payorZip?: string;
+  periodFrom: string;
+  periodTo: string;
+  transactions: string; // JSON stringified
+  status: 'Draft' | 'Final' | 'Imported';
+  tenantId: string;
+  createdAt: string;
+}

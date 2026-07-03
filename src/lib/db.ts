@@ -94,7 +94,7 @@ export const initializeLocalStorageOverride = () => {
         });
       } catch (e) {}
     };
-    console.log("Successfully initialized secure tenant localStorage override with real-time Firestore sync.");
+    // console.log("Successfully initialized secure tenant localStorage override with real-time Firestore sync.");
   } catch (e) {
     console.error("Failed to override localStorage", e);
   }
@@ -139,7 +139,7 @@ export const loadStorageFromFirebase = async (tenantId: string) => {
         rawStorage.setItem.call(window.localStorage, tenantKey, data.value);
       }
     });
-    console.log(`Successfully loaded and hydrated all Firestore storage for tenant ${tenantId}`);
+    // console.log(`Successfully loaded and hydrated all Firestore storage for tenant ${tenantId}`);
   } catch (e) {
     console.error(`Error loading storage for tenant ${tenantId}:`, e);
   }

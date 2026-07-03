@@ -305,7 +305,7 @@ export const FSModule: React.FC<FSModuleProps> = ({
           <span>Taxable Year: {yearFilter} • {periodText}</span>
         </div>
         <div className="print-running-footer">
-          <span>STRATIFY SYSTEM DEVELOPMENT — Approved for Loose-Leaf BIR Journal Binding</span>
+          <span>SECURE ERP COMPLIANCE HUB — Approved for Loose-Leaf BIR Journal Binding</span>
         </div>
 
         {/* INDEPENDENT AUDITOR'S REPORT (PAGE 1) */}
@@ -366,7 +366,7 @@ export const FSModule: React.FC<FSModuleProps> = ({
               <p className="text-zinc-500 font-bold uppercase tracking-wider text-[10px]">Audited & Certified By:</p>
               <div className="pt-10 border-b border-zinc-400 dark:border-zinc-600 w-48"></div>
               <div>
-                <p className="font-bold text-zinc-900 dark:text-white">SGV & CO. / INDEPENDENT AUDITOR</p>
+                <p className="font-bold text-zinc-900 dark:text-white">INDEPENDENT AUDITOR / ACCREDITED FIRM</p>
                 <p className="text-[10px] text-zinc-500">PRC License No. 0088192 (Valid until Oct 2028)</p>
                 <p className="text-[10px] text-zinc-500">PTR No. 9118231 | BIR Accreditation No. 08-002341-002-2026</p>
                 <p className="text-[10px] text-zinc-500">BOA/PRC Reg. No. 0001 (Valid until Dec 31, 2026)</p>

@@ -48,6 +48,24 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["key", "value"]
+    },
+    "Form2307": {
+      "title": "Form 2307",
+      "description": "BIR Form 2307 (Certificate of Creditable Tax Withheld at Source)",
+      "type": "object",
+      "properties": {
+        "payeeTin": { "type": "string" },
+        "payeeName": { "type": "string" },
+        "payorTin": { "type": "string" },
+        "payorName": { "type": "string" },
+        "periodFrom": { "type": "string" },
+        "periodTo": { "type": "string" },
+        "transactions": { "type": "string" },
+        "status": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["payeeTin", "payeeName", "payorTin", "payorName", "tenantId"]
     }
   },
   "firestore": {
@@ -66,6 +84,10 @@
     "tenants/{tenantId}/ledger/{entryId}": {
       "schema": { "$ref": "#/entities/LedgerEntry" },
       "description": "Stores accounting entries for a tenant"
+    },
+    "tenants/{tenantId}/forms2307/{formId}": {
+      "schema": { "$ref": "#/entities/Form2307" },
+      "description": "Stores generated or imported Form 2307 records"
     }
   }
 }
