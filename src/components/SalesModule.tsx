@@ -1,5 +1,6 @@
+import { PrintHeader } from './PrintHeader';
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { TrendingUp, Percent, FileSpreadsheet, PlusCircle, Printer } from 'lucide-react';
 import { 
   BarChart, 
@@ -70,9 +71,9 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
     }
   };
 
-  const itemVariants = {
+  const itemVariants: any = {
     hidden: { opacity: 0, y: 12 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100 } }
+    show: { opacity: 1, y: 0, transition: { type: 'spring' as any, stiffness: 100 } }
   };
 
   return (
@@ -82,7 +83,8 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
       animate="show"
       className="space-y-6"
     >
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5">
+      <PrintHeader title="Sales Journal" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5 no-print">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white font-sans">💰 Sales</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">Manage client sales invoices, output taxes, revenue trends, and customer balances.</p>
@@ -218,7 +220,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
         </motion.div>
       </div>
 
-      <motion.div variants={itemVariants} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden">
+      <motion.div variants={itemVariants} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden print:border-0 print:shadow-none print:w-full">
         <div className="border-b border-zinc-100 dark:border-zinc-800 p-5">
           <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">Posted Sales Invoices</h3>
           <p className="text-xs text-zinc-500 mt-1">Showing all sales transactions matching current filters.</p>
@@ -241,7 +243,10 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
               {salesRows.length ? salesRows.map(r => (
                 <tr key={r.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/10 transition-colors">
                   <td className="px-5 py-3.5 font-semibold text-zinc-800 dark:text-zinc-300">{cleanDate(r.date)}</td>
-                  <td className="px-5 py-3.5 font-bold text-zinc-800 dark:text-zinc-200 truncate max-w-[200px]">{r.payor}</td>
+                  <td className="px-5 py-3.5 truncate max-w-[200px]">
+                    <div className="font-bold text-zinc-800 dark:text-zinc-200">{String(r.payor || '—')}</div>
+                    {r.address && typeof r.address === 'string' && <div className="text-[10px] text-zinc-400 font-normal truncate" title={r.address}>{r.address}</div>}
+                  </td>
                   <td className="px-5 py-3.5">
                     <div className="font-mono font-bold text-zinc-800 dark:text-zinc-300">{r.ref || '—'}</div>
                     {r.itemType && (
@@ -272,3 +277,5 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
     </motion.div>
   );
 };
+
+export default SalesModule;

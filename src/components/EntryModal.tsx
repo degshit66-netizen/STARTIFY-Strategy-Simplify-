@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 import { X, Sparkles, HelpCircle, FileSpreadsheet } from "lucide-react";
 import * as XLSX from "xlsx";
 import { LedgerEntry } from "../types";
@@ -46,6 +46,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
   const [accountCode, setAccountCode] = useState("");
   const [payor, setPayor] = useState("");
   const [tin, setTin] = useState("");
+  const [address, setAddress] = useState("");
   const [particulars, setParticulars] = useState("");
   const [grossInput, setGrossInput] = useState("");
   const [taxType, setTaxType] = useState<
@@ -55,7 +56,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
     "Inclusive",
   );
   const [status, setStatus] = useState<
-    "Cleared" | "Pending" | "Void" | "Posted"
+    "Cleared" | "Pending" | "Void" | "Active"
   >("Cleared");
   const [terms, setTerms] = useState("COD (Cash Received)");
   const [cashInput, setCashInput] = useState("");
@@ -122,14 +123,15 @@ export const EntryModal: React.FC<EntryModalProps> = ({
         setAccountCode(initialData.accountCode);
         setPayor(initialData.payor);
         setTin(initialData.tin || "");
+        setAddress(initialData.address || "");
         setParticulars(initialData.particulars);
-        setGrossInput(initialData.gross);
+        setGrossInput(String(initialData.gross || ""));
         setTaxType(initialData.taxType as any);
         setVatMode("Inclusive"); // default to inclusive on load
         setStatus(initialData.status as any);
         setTerms(initialData.terms || "COD");
-        setCashInput(initialData.amount_paid?.toString() || "");
-        setArApInput(initialData.balance?.toString() || "");
+        setCashInput(initialData.cash?.toString() || "");
+        setArApInput(initialData.arAp?.toString() || "");
         setItemType(initialData.itemType || "Goods");
         setRef(initialData.ref || "");
         setEnableCwt(
@@ -162,12 +164,13 @@ export const EntryModal: React.FC<EntryModalProps> = ({
         setAccountCode(scanResult.accountCode);
         setPayor(scanResult.payor);
         setTin(scanResult.tin || "");
+        setAddress("");
         setParticulars(scanResult.particulars);
         setGrossInput(scanResult.gross);
         setCashInput(scanResult.gross);
         setArApInput("0");
         setItemType("Goods");
-        setRef(scanResult.ref || "");
+        setRef((scanResult as any).ref || "");
         setEwtRateSelect("Auto");
         setEnableCwt(false);
         setVatMode("Inclusive");
@@ -177,6 +180,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
         setAccountCode("");
         setPayor("");
         setTin("");
+        setAddress("");
         setParticulars("");
         setGrossInput("");
         setCashInput("");
@@ -184,7 +188,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
         setTaxType("Vatable");
         setVatMode("Inclusive");
         setStatus("Cleared");
-        setTerms(initialType === "Expense" || initialType === "Purchase" ? "COD (Cash Disbursed)" : "COD (Cash Received)");
+        setTerms(initialType === "Expense" || (initialType as any) === "Purchase" ? "COD (Cash Disbursed)" : "COD (Cash Received)");
         setItemType("Goods");
         setRef("");
         setEwtRateSelect("Auto");
@@ -574,7 +578,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
       taxType,
       status,
       terms,
-      address: "",
+      address: address.trim(),
       createdAt: new Date().toISOString(),
       ewt: computedEwt,
       itemType,
@@ -597,6 +601,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
     setTaxType("Vatable");
     setStatus("Cleared");
     setTerms(type === "Expense" ? "COD (Cash Disbursed)" : "COD (Cash Received)");
+    setAddress("");
     setCashInput("");
     setArApInput("");
     setItemType("Goods");
@@ -755,7 +760,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
             initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
-            transition={{ type: "spring", duration: 0.3 }}
+            transition={{ type: "spring" as any, duration: 0.3 }}
             className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] sm:w-full sm:max-w-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl z-[201] overflow-hidden flex flex-col justify-between"
           >
             <div>
@@ -990,10 +995,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
                               <span>💰</span>
                               <span>
                                 Amount Expected (₱{" "}
-                                {computedCwt.toLocaleString("en-US", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}
+                                {formatCurrency(computedCwt)}
                                 )
                               </span>
                             </span>
@@ -1019,12 +1021,12 @@ export const EntryModal: React.FC<EntryModalProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
-                      Client / Supplier Name
+                      {type === "Sales" ? "Client Name" : "Supplier Name"}
                     </label>
                     <input
                       type="text"
                       list="contacts-list"
-                      placeholder="e.g. Acme MegaCorp PH"
+                      placeholder={type === "Sales" ? "e.g. Acme MegaCorp PH" : "e.g. Global Supplies Ltd"}
                       value={payor}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -1034,6 +1036,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({
                         );
                         if (found) {
                           setTin(found.tin || "");
+                          setAddress(found.address || "");
                         }
                       }}
                       className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-blue-400"
@@ -1056,6 +1059,19 @@ export const EntryModal: React.FC<EntryModalProps> = ({
                       className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
+                    Business Address
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Complete business address for BIR reporting..."
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-blue-400"
+                  />
                 </div>
 
                 <div className="space-y-1.5">

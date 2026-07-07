@@ -2,16 +2,19 @@ import { LedgerEntry } from '../types';
 
 export function parseNum(val: any): number {
   if (val === null || val === undefined) return 0;
-  if (typeof val === 'number') return val;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
   const cleaned = String(val).replace(/,/g, '').replace(/[^\d.-]/g, '');
-  return parseFloat(cleaned) || 0;
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? 0 : parsed;
 }
 
 export function r2(num: number): number {
+  if (isNaN(num) || !isFinite(num)) return 0;
   return Math.round((num + Number.EPSILON) * 100) / 100;
 }
 
 export function formatCurrency(num: number): string {
+  if (isNaN(num) || !isFinite(num)) return "0.00";
   const parsed = r2(num);
   if (parsed < 0) {
     return "(" + Math.abs(parsed).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ")";

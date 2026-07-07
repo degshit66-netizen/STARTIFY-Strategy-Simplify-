@@ -1,6 +1,6 @@
 import React from 'react';
 import { ShieldAlert, Mail, Phone, Facebook } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Tenant, User } from '../types';
 
 interface SubscriptionPromptProps {
@@ -64,3 +64,5 @@ export const SubscriptionPrompt: React.FC<SubscriptionPromptProps> = ({ tenant, 
     </div>
   );
 };
+
+export default SubscriptionPrompt;

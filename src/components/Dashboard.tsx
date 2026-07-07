@@ -1,5 +1,5 @@
-import React from 'react';
-import { motion } from 'motion/react';
+import React, { useState, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -53,31 +53,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
   companyTin,
   onOpenAICopilot
 }) => {
-  const filteredRows = ledger.filter(r => r.status !== 'Void' && inPeriod(r, yearFilter, monthFilter, quarterFilter));
+  const filteredRows = useMemo(() => ledger.filter(r => r.status !== 'Void' && inPeriod(r, yearFilter, monthFilter, quarterFilter)), [ledger, yearFilter, monthFilter, quarterFilter]);
   
-  const sales = filteredRows.filter(r => r.type === 'Sales');
-  const purchases = filteredRows.filter(r => r.type === 'Expense');
+  const sales = useMemo(() => filteredRows.filter(r => r.type === 'Sales'), [filteredRows]);
+  const purchases = useMemo(() => filteredRows.filter(r => r.type === 'Expense'), [filteredRows]);
   
-  const totalSalesGross = sales.reduce((a, b) => a + r2(parseNum(b.gross)), 0);
-  const totalSalesNet = sales.reduce((a, b) => a + r2(parseNum(b.net) || (b.taxType === 'Vatable' ? parseNum(b.gross) / 1.12 : parseNum(b.gross))), 0);
-  const totalPurchGross = purchases.reduce((a, b) => a + r2(parseNum(b.gross)), 0);
-  const totalPurchNet = purchases.reduce((a, b) => a + r2(parseNum(b.net) || (b.taxType === 'Vatable' ? parseNum(b.gross) / 1.12 : parseNum(b.gross))), 0);
-  const outputVat = sales.reduce((a, b) => a + r2(parseNum(b.vat)), 0);
-  const inputVat = purchases.reduce((a, b) => a + r2(parseNum(b.vat)), 0);
+  const totalSalesGross = useMemo(() => sales.reduce((a, b) => a + r2(parseNum(b.gross)), 0), [sales]);
+  const totalSalesNet = useMemo(() => sales.reduce((a, b) => a + r2(parseNum(b.net) || (b.taxType === 'Vatable' ? parseNum(b.gross) / 1.12 : parseNum(b.gross))), 0), [sales]);
+  const totalPurchGross = useMemo(() => purchases.reduce((a, b) => a + r2(parseNum(b.gross)), 0), [purchases]);
+  const totalPurchNet = useMemo(() => purchases.reduce((a, b) => a + r2(parseNum(b.net) || (b.taxType === 'Vatable' ? parseNum(b.gross) / 1.12 : parseNum(b.gross))), 0), [purchases]);
+  const outputVat = useMemo(() => sales.reduce((a, b) => a + r2(parseNum(b.vat)), 0), [sales]);
+  const inputVat = useMemo(() => purchases.reduce((a, b) => a + r2(parseNum(b.vat)), 0), [purchases]);
   const netVat = r2(outputVat - inputVat);
-  const totalCash = filteredRows.reduce((a, b) => a + r2(parseNum(b.cash || 0)), 0);
+  const totalCash = useMemo(() => filteredRows.reduce((a, b) => a + r2(parseNum(b.cash || 0)), 0), [filteredRows]);
 
-  const costOfSales = purchases.filter(r => {
+  const costOfSales = useMemo(() => purchases.filter(r => {
     const ref = `${r.category || ''} ${r.particulars || ''}`.toLowerCase();
     return /cost of sales|cogs|inventory|materials|purchase/.test(ref);
-  }).reduce((a, b) => a + r2(parseNum(b.net) || parseNum(b.gross)), 0);
+  }).reduce((a, b) => a + r2(parseNum(b.net) || parseNum(b.gross)), 0), [purchases]);
 
   const operatingExpenses = Math.max(0, r2(totalPurchNet - costOfSales));
   const grossProfit = r2(totalSalesNet - costOfSales);
   const netIncome = r2(grossProfit - operatingExpenses);
 
   // Month-over-month Financial Health Summary Calculations
-  const curMonth = monthFilter !== 'ALL' ? monthFilter.toUpperCase() : MONTH_NAMES[new Date().getMonth()];
+  const curMonth = (monthFilter && monthFilter !== 'ALL') ? monthFilter.toUpperCase() : MONTH_NAMES[new Date().getMonth()];
   const curYear = yearFilter !== 'ALL' ? yearFilter : String(new Date().getFullYear());
 
   const curMonthIndex = MONTH_NAMES.indexOf(curMonth);
@@ -85,15 +85,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const prevMonth = MONTH_NAMES[prevMonthIndex];
   const prevYear = curMonthIndex === 0 ? String(parseInt(curYear) - 1) : curYear;
 
-  const curMonthRows = ledger.filter(r => r.status !== 'Void' && String(r.month).toUpperCase() === curMonth && String(new Date(r.date).getFullYear()) === curYear);
-  const prevMonthRows = ledger.filter(r => r.status !== 'Void' && String(r.month).toUpperCase() === prevMonth && String(new Date(r.date).getFullYear()) === prevYear);
+  const curMonthRows = useMemo(() => ledger.filter(r => r.status !== 'Void' && String(r.month).toUpperCase() === curMonth && String(new Date(r.date).getFullYear()) === curYear), [ledger, curMonth, curYear]);
+  const prevMonthRows = useMemo(() => ledger.filter(r => r.status !== 'Void' && String(r.month).toUpperCase() === prevMonth && String(new Date(r.date).getFullYear()) === prevYear), [ledger, prevMonth, prevYear]);
 
-  const curSales = curMonthRows.filter(r => r.type === 'Sales').reduce((sum, r) => sum + r2(parseNum(r.gross)), 0);
-  const curExpenses = curMonthRows.filter(r => r.type === 'Expense').reduce((sum, r) => sum + r2(parseNum(r.gross)), 0);
+  const curSales = useMemo(() => curMonthRows.filter(r => r.type === 'Sales').reduce((sum, r) => sum + r2(parseNum(r.gross)), 0), [curMonthRows]);
+  const curExpenses = useMemo(() => curMonthRows.filter(r => r.type === 'Expense').reduce((sum, r) => sum + r2(parseNum(r.gross)), 0), [curMonthRows]);
   const curNet = r2(curSales - curExpenses);
 
-  const prevSales = prevMonthRows.filter(r => r.type === 'Sales').reduce((sum, r) => sum + r2(parseNum(r.gross)), 0);
-  const prevExpenses = prevMonthRows.filter(r => r.type === 'Expense').reduce((sum, r) => sum + r2(parseNum(r.gross)), 0);
+  const prevSales = useMemo(() => prevMonthRows.filter(r => r.type === 'Sales').reduce((sum, r) => sum + r2(parseNum(r.gross)), 0), [prevMonthRows]);
+  const prevExpenses = useMemo(() => prevMonthRows.filter(r => r.type === 'Expense').reduce((sum, r) => sum + r2(parseNum(r.gross)), 0), [prevMonthRows]);
   const prevNet = r2(prevSales - prevExpenses);
 
   // Sales Growth %
@@ -120,12 +120,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
     netGrowth = curNet > 0 ? 100 : -100;
   }
 
-  const recent = [...filteredRows]
+  const recent = useMemo(() => [...filteredRows]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
+    .slice(0, 5), [filteredRows]);
 
   // Group by Month for Bar Chart
-  const monthlyData = MONTH_NAMES.map(m => {
+  const monthlyData = useMemo(() => MONTH_NAMES.map(m => {
     const monthSales = filteredRows
       .filter(r => r.type === 'Sales' && String(r.month).toUpperCase() === m)
       .reduce((sum, r) => sum + r2(parseNum(r.gross)), 0);
@@ -137,22 +137,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
       Sales: r2(monthSales),
       Purchases: r2(monthPurch)
     };
-  });
+  }), [filteredRows]);
 
   // Group by category for Pie Chart
-  const categoriesMap: Record<string, number> = {};
-  filteredRows.forEach(r => {
-    const key = r.type === 'Sales' ? (r.category || 'Sales Revenue - Goods') : (r.category || 'Purchases');
-    categoriesMap[key] = (categoriesMap[key] || 0) + r2(parseNum(r.gross));
-  });
+  const categoriesMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredRows.forEach(r => {
+      const key = r.type === 'Sales' ? (r.category || 'Sales Revenue - Goods') : (r.category || 'Purchases');
+      map[key] = (map[key] || 0) + r2(parseNum(r.gross));
+    });
+    return map;
+  }, [filteredRows]);
 
-  const pieData = Object.entries(categoriesMap)
+  const pieData = useMemo(() => Object.entries(categoriesMap)
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value)
-    .slice(0, 6);
+    .slice(0, 6), [categoriesMap]);
 
   // Chart and Tax states
-  const [chartType, setChartType] = React.useState<'line' | 'bar'>('line');
+  const [chartType, setChartType] = useState<'line' | 'bar'>('line');
 
   // Real-time Estimated Tax Liabilities calculations
   const nonVatSales = sales.filter(r => r.taxType === 'Non-VAT').reduce((sum, r) => sum + r2(parseNum(r.gross)), 0);
@@ -191,9 +194,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
-  const itemVariants = {
+  const itemVariants: any = {
     hidden: { opacity: 0, y: 12 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100 } }
+    show: { opacity: 1, y: 0, transition: { type: 'spring' as any, stiffness: 100 } }
   };
 
   return (
@@ -712,7 +715,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-xs text-zinc-500 dark:text-zinc-400 truncate max-w-[160px] font-semibold">{r.category}</td>
-                  <td className="px-5 py-3.5 text-xs text-zinc-800 dark:text-zinc-200 font-bold truncate max-w-[180px]">{r.payor}</td>
+                  <td className="px-5 py-3.5 text-xs text-zinc-800 dark:text-zinc-200 font-bold truncate max-w-[180px]">{String(r.payor || '—')}</td>
                   <td className="px-5 py-3.5 text-xs text-zinc-500 font-mono font-medium">{r.ref}</td>
                   <td className="px-5 py-3.5 text-xs text-right font-semibold font-mono text-zinc-800 dark:text-zinc-300">{displayMoney(r.gross)}</td>
                   <td className="px-5 py-3.5 text-xs text-right font-medium font-mono text-zinc-500 dark:text-zinc-400">{displayMoney(r.net !== undefined ? r.net : (r.taxType === 'Vatable' ? r.gross / 1.12 : r.gross))}</td>
@@ -731,3 +734,5 @@ export const Dashboard: React.FC<DashboardProps> = ({
     </motion.div>
   );
 };
+
+export default Dashboard;

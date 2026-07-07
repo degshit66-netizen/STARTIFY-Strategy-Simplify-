@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { 
   Edit2, 
   Trash2, 
@@ -18,7 +18,7 @@ import {
   Printer
 } from 'lucide-react';
 import { LedgerEntry } from '../types';
-import { displayMoney, formatCurrency, cleanDate, isMonthLocked } from '../utils/helpers';
+import { displayMoney, formatCurrency, cleanDate, isMonthLocked, parseNum } from '../utils/helpers';
 
 interface LedgerTableProps {
   ledger: LedgerEntry[];
@@ -181,7 +181,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
     // Period filter
     const cleanDt = cleanDate(row.date);
     if (yearFilter !== 'ALL' && (!cleanDt || !cleanDt.includes(yearFilter))) return false;
-    if (monthFilter !== 'ALL' && String(row.month || '').toUpperCase() !== monthFilter.toUpperCase()) return false;
+    if (monthFilter && monthFilter !== 'ALL' && String(row.month || '').toUpperCase() !== monthFilter.toUpperCase()) return false;
     
     if (quarterFilter !== 'ALL') {
       const quarterMonths: Record<string, string[]> = {
@@ -321,13 +321,13 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
                 className="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl pl-10 pr-4 py-2 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
               />
             </div>
-            <button
+            <button 
               onClick={() => window.print()}
-              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs bg-zinc-900 hover:bg-zinc-800 text-white font-bold transition-all border border-zinc-800 shadow-sm shrink-0 no-print"
+              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs bg-zinc-950 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 dark:text-zinc-900 text-white font-bold transition-all border border-zinc-800 shadow-sm shrink-0 no-print"
               title="Print current filtered ledger entries"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>Print Registry</span>
+              <span>Print Report</span>
             </button>
 
             {onUpdateLocks && (
@@ -691,3 +691,5 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
     </div>
   );
 };
+
+export default LedgerTable;

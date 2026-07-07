@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { 
   Book, 
@@ -186,7 +186,7 @@ export const BooksModule: React.FC<BooksModuleProps> = ({
       return {
         id: row.id,
         date: row.date,
-        ref: row.ref || `TX-${row.id}`,
+        ref: row.ref || '—',
         particulars: row.particulars,
         lines: entryLines,
         totalDebit,
@@ -244,7 +244,7 @@ export const BooksModule: React.FC<BooksModuleProps> = ({
         }
         ledgerGroups[l.accountCode].entries.push({
           date: row.date,
-          ref: row.ref || `TX-${row.id}`,
+          ref: row.ref || '—',
           particulars: row.particulars,
           debit: l.debit,
           credit: l.credit
@@ -266,7 +266,7 @@ export const BooksModule: React.FC<BooksModuleProps> = ({
       const otherLines = lines.filter(l => l.accountCode !== '1010' && l.accountCode !== '1020' && l.accountCode !== '2110' && l.accountCode !== '4010' && l.accountCode !== '4011');
       return {
         date: row.date,
-        ref: row.ref || `OR-${row.id}`,
+        ref: row.ref || '—',
         payor: row.payor,
         particulars: row.particulars,
         cashDebit,
@@ -291,7 +291,7 @@ export const BooksModule: React.FC<BooksModuleProps> = ({
       const otherLines = lines.filter(l => l.accountCode !== '1010' && l.accountCode !== '2010' && l.accountCode !== '1070' && l.accountCode !== '5010' && !l.accountCode.startsWith('6'));
       return {
         date: row.date,
-        ref: row.ref || `CV-${row.id}`,
+        ref: row.ref || '—',
         payee: row.payor,
         particulars: row.particulars,
         cashCredit,
@@ -310,7 +310,7 @@ export const BooksModule: React.FC<BooksModuleProps> = ({
       const isCreditSales = row.terms !== 'COD' && row.terms !== 'Cash';
       return {
         date: row.date,
-        ref: row.ref || `SI-${row.id}`,
+        ref: row.ref || '—',
         customer: row.payor,
         tin: row.tin || 'N/A',
         gross,
@@ -331,7 +331,7 @@ export const BooksModule: React.FC<BooksModuleProps> = ({
       const isCreditPurch = row.terms !== 'COD' && row.terms !== 'Cash';
       return {
         date: row.date,
-        ref: row.ref || `RR-${row.id}`,
+        ref: row.ref || '—',
         vendor: row.payor,
         tin: row.tin || 'N/A',
         gross,
@@ -430,7 +430,7 @@ export const BooksModule: React.FC<BooksModuleProps> = ({
     return reliefRows.filter(r => 
       String(r.payor || '').toLowerCase().includes(q) || 
       String(r.tin || '').includes(q) || 
-      String(r.particulars || '').toLowerCase().includes(q)
+      String((r as any).particulars || '').toLowerCase().includes(q)
     );
   }, [reliefRows, reliefSearch]);
 
@@ -539,7 +539,7 @@ PAGE NUMBER              : PAGE ${pageNum}
       
       Object.keys(booksData.ledgerGroups).sort().forEach(code => {
         const g = booksData.ledgerGroups[code];
-        output += `\r\nACCOUNT: ${g.code} - ${g.name.toUpperCase()}\r\n`;
+        output += `\r\nACCOUNT: ${g.code} - ${(g.name || '').toUpperCase()}\r\n`;
         output += `BEGINNING BALANCE: ${formatCurrency(g.begBalance)}\r\n`;
         output += '-'.repeat(96) + '\r\n';
         output += String('DATE').padEnd(12) + ' ' + String('REF').padEnd(12) + ' ' + String('PARTICULARS').padEnd(36) + ' ' + String('DEBIT (DR)').padStart(15) + ' ' + String('CREDIT (CR)').padStart(15) + '\r\n';
@@ -562,7 +562,7 @@ PAGE NUMBER              : PAGE ${pageNum}
       output += String('DATE').padEnd(10) + ' ' + String('REF').padEnd(10) + ' ' + String('PAYOR').padEnd(20) + ' ' + String('CASH DR').padStart(11) + ' ' + String('AR CR').padStart(11) + ' ' + String('SALES CR').padStart(11) + ' ' + String('VAT CR').padStart(11) + '\r\n';
       output += '-'.repeat(96) + '\r\n';
 
-      booksData.cashReceipts.forEach(r => {
+      booksData.cashReceipts.forEach((r: any) => {
         output += r.date.padEnd(10) + ' ' + r.ref.padEnd(10) + ' ' + r.payor.slice(0,18).padEnd(20) + ' ' + 
                   (r.cashDebit > 0 ? r.cashDebit.toFixed(2) : '0.00').padStart(11) + ' ' +
                   (r.arCredit > 0 ? r.arCredit.toFixed(2) : '0.00').padStart(11) + ' ' +
@@ -576,7 +576,7 @@ PAGE NUMBER              : PAGE ${pageNum}
       output += String('DATE').padEnd(10) + ' ' + String('REF').padEnd(10) + ' ' + String('PAYEE').padEnd(20) + ' ' + String('CASH CR').padStart(11) + ' ' + String('AP DR').padStart(11) + ' ' + String('PURCH DR').padStart(11) + ' ' + String('VAT DR').padStart(11) + '\r\n';
       output += '-'.repeat(96) + '\r\n';
 
-      booksData.cashDisbursements.forEach(r => {
+      booksData.cashDisbursements.forEach((r: any) => {
         output += r.date.padEnd(10) + ' ' + r.ref.padEnd(10) + ' ' + r.payee.slice(0,18).padEnd(20) + ' ' + 
                   (r.cashCredit > 0 ? r.cashCredit.toFixed(2) : '0.00').padStart(11) + ' ' +
                   (r.apDebit > 0 ? r.apDebit.toFixed(2) : '0.00').padStart(11) + ' ' +
@@ -590,7 +590,7 @@ PAGE NUMBER              : PAGE ${pageNum}
       output += String('DATE').padEnd(10) + ' ' + String('REF').padEnd(10) + ' ' + String('CUSTOMER').padEnd(20) + ' ' + String('GROSS').padStart(11) + ' ' + String('TAXABLE').padStart(11) + ' ' + String('EXEMPT').padStart(11) + ' ' + String('OUTPUT VAT').padStart(11) + '\r\n';
       output += '-'.repeat(96) + '\r\n';
 
-      booksData.salesJournal.forEach(r => {
+      booksData.salesJournal.forEach((r: any) => {
         output += r.date.padEnd(10) + ' ' + r.ref.padEnd(10) + ' ' + r.customer.slice(0,18).padEnd(20) + ' ' + 
                   r.gross.toFixed(2).padStart(11) + ' ' +
                   r.taxable.toFixed(2).padStart(11) + ' ' +
@@ -655,7 +655,7 @@ PAGE NUMBER              : PAGE ${pageNum}
       wsData.push(['', '', 'TOTAL', totalDr, totalCr]);
     } else if (selectedBook === 'GeneralLedger') {
       wsData.push(['DATE', 'REF', 'PARTICULARS', 'DEBIT (PHP)', 'CREDIT (PHP)', 'BALANCE (PHP)']);
-      booksData.generalLedger.forEach(acct => {
+      Object.values(booksData.ledgerGroups).forEach(acct => {
         wsData.push([`Account: ${acct.code} - ${acct.name}`, '', '', '', '', '']);
         wsData.push(['', 'Beg. Balance', '', '', '', acct.begBalance]);
         acct.entries.forEach(e => {
@@ -666,7 +666,7 @@ PAGE NUMBER              : PAGE ${pageNum}
     } else if (selectedBook === 'CashReceipts') {
       wsData.push(['DATE', 'REF', 'CUSTOMER', 'GROSS RECEIPT', 'TAXABLE RECEIPT', 'EXEMPT', 'OUTPUT VAT']);
       let sumGross = 0, sumTax = 0, sumEx = 0, sumVat = 0;
-      booksData.cashReceipts.forEach(r => {
+      booksData.cashReceipts.forEach((r: any) => {
         wsData.push([r.date, r.ref, r.customer, r.gross, r.taxable, r.exempt, r.vat]);
         sumGross += r.gross; sumTax += r.taxable; sumEx += r.exempt; sumVat += r.vat;
       });
@@ -675,7 +675,7 @@ PAGE NUMBER              : PAGE ${pageNum}
     } else if (selectedBook === 'CashDisbursements') {
       wsData.push(['DATE', 'REF', 'PAYEE', 'GROSS PAYMENT', 'TAXABLE', 'EXEMPT', 'INPUT VAT']);
       let sumGross = 0, sumTax = 0, sumEx = 0, sumVat = 0;
-      booksData.cashDisbursements.forEach(r => {
+      booksData.cashDisbursements.forEach((r: any) => {
         wsData.push([r.date, r.ref, r.payee, r.gross, r.taxable, r.exempt, r.vat]);
         sumGross += r.gross; sumTax += r.taxable; sumEx += r.exempt; sumVat += r.vat;
       });
@@ -684,7 +684,7 @@ PAGE NUMBER              : PAGE ${pageNum}
     } else if (selectedBook === 'SalesJournal') {
       wsData.push(['DATE', 'REF', 'CUSTOMER', 'GROSS SALES', 'TAXABLE SALES', 'EXEMPT', 'OUTPUT VAT']);
       let sumGross = 0, sumTax = 0, sumEx = 0, sumVat = 0;
-      booksData.salesJournal.forEach(r => {
+      booksData.salesJournal.forEach((r: any) => {
         wsData.push([r.date, r.ref, r.customer, r.gross, r.taxable, r.exempt, r.vat]);
         sumGross += r.gross; sumTax += r.taxable; sumEx += r.exempt; sumVat += r.vat;
       });
@@ -712,7 +712,13 @@ PAGE NUMBER              : PAGE ${pageNum}
     if (showToast) {
       showToast('Opening Print Dialog... If your browser blocks it inside this iframe preview, please click the "Open in new tab" icon on the top right to print successfully!', 'info');
     }
-    window.print();
+    document.body.classList.add('is-printing-books');
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove('is-printing-books');
+      }, 500);
+    }, 100);
   };
 
   return (
@@ -1146,9 +1152,9 @@ PAGE NUMBER              : PAGE ${pageNum}
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-center font-sans">{r.date}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-center font-mono font-bold text-zinc-500">{r.ref}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-200">{r.payor}</td>
-                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-sans text-zinc-650 dark:text-zinc-400">{r.particulars}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-sans text-zinc-650 dark:text-zinc-400">{(r as any).particulars}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">{r.cashDebit > 0 ? formatCurrency(r.cashDebit) : '0.00'}</td>
-                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono">{r.ewtDebit > 0 ? formatCurrency(r.ewtDebit) : '0.00'}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono">{(r as any).ewtDebit > 0 ? formatCurrency((r as any).ewtDebit) : '0.00'}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono">{r.salesCredit > 0 ? formatCurrency(r.salesCredit) : '0.00'}</td>
                             <td className="px-3 py-1.5 text-right font-mono text-blue-600 dark:text-blue-400">{r.vatCredit > 0 ? formatCurrency(r.vatCredit) : '0.00'}</td>
                           </tr>
@@ -1157,10 +1163,10 @@ PAGE NUMBER              : PAGE ${pageNum}
                       {/* CRJ Total row matching page 5 */}
                       <tr className="font-black bg-zinc-50 dark:bg-zinc-950 border-t-2 border-zinc-950 dark:border-zinc-700">
                         <td colSpan={4} className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right uppercase tracking-wider text-[10px]">TOTAL</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashReceipts.reduce((sum, r) => sum + r.cashDebit, 0))}</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashReceipts.reduce((sum, r) => sum + r.ewtDebit, 0))}</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashReceipts.reduce((sum, r) => sum + r.salesCredit, 0))}</td>
-                        <td className="px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashReceipts.reduce((sum, r) => sum + r.vatCredit, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashReceipts.reduce((sum, r) => sum + (r as any).cashDebit, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashReceipts.reduce((sum, r) => sum + (r as any).ewtDebit, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashReceipts.reduce((sum, r) => sum + (r as any).salesCredit, 0))}</td>
+                        <td className="px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashReceipts.reduce((sum, r) => sum + (r as any).vatCredit, 0))}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1191,21 +1197,21 @@ PAGE NUMBER              : PAGE ${pageNum}
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-center font-sans">{r.date}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-center font-mono font-bold text-zinc-500">{r.ref}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-200">{r.payee}</td>
-                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-sans text-zinc-650 dark:text-zinc-400">{r.particulars}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 font-sans text-zinc-650 dark:text-zinc-400">{(r as any).particulars}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono font-bold">{r.purchaseDebit > 0 ? formatCurrency(r.purchaseDebit) : '0.00'}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono text-emerald-600 dark:text-emerald-400">{r.vatDebit > 0 ? formatCurrency(r.vatDebit) : '0.00'}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-1.5 text-right font-mono text-red-600 dark:text-red-400">{r.cashCredit > 0 ? formatCurrency(r.cashCredit) : '0.00'}</td>
-                            <td className="px-3 py-1.5 text-right font-mono text-zinc-600 dark:text-zinc-300">{r.ewtCredit > 0 ? formatCurrency(r.ewtCredit) : '0.00'}</td>
+                            <td className="px-3 py-1.5 text-right font-mono text-zinc-600 dark:text-zinc-300">{(r as any).ewtCredit > 0 ? formatCurrency((r as any).ewtCredit) : '0.00'}</td>
                           </tr>
                         ))
                       )}
                       {/* CDJ Total row matching page 6 */}
                       <tr className="font-black bg-zinc-50 dark:bg-zinc-950 border-t-2 border-zinc-950 dark:border-zinc-700">
                         <td colSpan={4} className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right uppercase tracking-wider text-[10px]">TOTAL</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashDisbursements.reduce((sum, r) => sum + r.purchaseDebit, 0))}</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashDisbursements.reduce((sum, r) => sum + r.vatDebit, 0))}</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashDisbursements.reduce((sum, r) => sum + r.cashCredit, 0))}</td>
-                        <td className="px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashDisbursements.reduce((sum, r) => sum + r.ewtCredit, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashDisbursements.reduce((sum, r) => sum + (r as any).purchaseDebit, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashDisbursements.reduce((sum, r) => sum + (r as any).vatDebit, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashDisbursements.reduce((sum, r) => sum + (r as any).cashCredit, 0))}</td>
+                        <td className="px-3 py-2 text-right font-mono">{formatCurrency(booksData.cashDisbursements.reduce((sum, r) => sum + (r as any).ewtCredit, 0))}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1240,8 +1246,8 @@ PAGE NUMBER              : PAGE ${pageNum}
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-center font-mono font-bold text-zinc-500">{r.ref}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-200">{r.customer}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-center">{r.tin}</td>
-                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans text-zinc-600 dark:text-zinc-400 truncate max-w-[120px]" title={r.address}>{r.address}</td>
-                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans text-zinc-650 dark:text-zinc-400 truncate max-w-[100px]" title={r.particulars}>{r.particulars}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans text-zinc-600 dark:text-zinc-400 truncate max-w-[120px]" title={(r as any).address}>{(r as any).address}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans text-zinc-650 dark:text-zinc-400 truncate max-w-[100px]" title={(r as any).particulars}>{(r as any).particulars}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono font-bold">{formatCurrency(r.gross)}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono">{r.taxable > 0 ? formatCurrency(r.taxable) : '0.00'}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono text-blue-600 dark:text-blue-400">{r.vat > 0 ? formatCurrency(r.vat) : '0.00'}</td>
@@ -1253,11 +1259,11 @@ PAGE NUMBER              : PAGE ${pageNum}
                       {/* SJ Total row matching page 3 */}
                       <tr className="font-black bg-zinc-50 dark:bg-zinc-950 border-t-2 border-zinc-950 dark:border-zinc-700">
                         <td colSpan={6} className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right uppercase tracking-wider text-[9px]">TOTAL</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.salesJournal.reduce((sum, r) => sum + r.gross, 0))}</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.salesJournal.reduce((sum, r) => sum + r.taxable, 0))}</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.salesJournal.reduce((sum, r) => sum + r.vat, 0))}</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.salesJournal.reduce((sum, r) => sum + r.exempt, 0))}</td>
-                        <td className="px-2 py-2 text-right font-mono">{formatCurrency(booksData.salesJournal.reduce((sum, r) => sum + r.zeroRated, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.salesJournal.reduce((sum, r) => sum + (r as any).gross, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.salesJournal.reduce((sum, r) => sum + (r as any).taxable, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.salesJournal.reduce((sum, r) => sum + (r as any).vat, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.salesJournal.reduce((sum, r) => sum + (r as any).exempt, 0))}</td>
+                        <td className="px-2 py-2 text-right font-mono">{formatCurrency(booksData.salesJournal.reduce((sum, r) => sum + (r as any).zeroRated, 0))}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1294,27 +1300,27 @@ PAGE NUMBER              : PAGE ${pageNum}
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-center font-mono font-bold text-zinc-500">{r.ref}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans font-bold text-zinc-900 dark:text-zinc-200">{r.vendor}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-center">{r.tin}</td>
-                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans text-zinc-600 dark:text-zinc-400 truncate max-w-[100px]" title={r.address}>{r.address}</td>
-                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans text-zinc-650 dark:text-zinc-400 truncate max-w-[100px]" title={r.particulars}>{r.particulars}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans text-zinc-600 dark:text-zinc-400 truncate max-w-[100px]" title={(r as any).address}>{(r as any).address}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 font-sans text-zinc-650 dark:text-zinc-400 truncate max-w-[100px]" title={(r as any).particulars}>{(r as any).particulars}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono font-bold">{formatCurrency(r.gross)}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono">{r.taxable > 0 ? formatCurrency(r.taxable) : '0.00'}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono text-emerald-600 dark:text-emerald-400">{r.vat > 0 ? formatCurrency(r.vat) : '0.00'}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono text-zinc-500">{r.exempt > 0 ? formatCurrency(r.exempt) : '0.00'}</td>
                             <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono text-zinc-500">{r.zeroRated > 0 ? formatCurrency(r.zeroRated) : '0.00'}</td>
-                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono text-red-600 dark:text-red-400">{r.ewt > 0 ? formatCurrency(r.ewt) : '0.00'}</td>
-                            <td className="px-2 py-1.5 font-sans font-semibold text-zinc-600 dark:text-zinc-400 truncate max-w-[100px]" title={r.category}>{r.category}</td>
+                            <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-1.5 text-right font-mono text-red-600 dark:text-red-400">{(r as any).ewt > 0 ? formatCurrency((r as any).ewt) : '0.00'}</td>
+                            <td className="px-2 py-1.5 font-sans font-semibold text-zinc-600 dark:text-zinc-400 truncate max-w-[100px]" title={(r as any).category}>{(r as any).category}</td>
                           </tr>
                         ))
                       )}
                       {/* PJ Total row matching page 4 */}
                       <tr className="font-black bg-zinc-50 dark:bg-zinc-950 border-t-2 border-zinc-950 dark:border-zinc-700">
                         <td colSpan={6} className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right uppercase tracking-wider text-[9px]">TOTAL</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + r.gross, 0))}</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + r.taxable, 0))}</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + r.vat, 0))}</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + r.exempt, 0))}</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + r.zeroRated, 0))}</td>
-                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + r.ewt, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + (r as any).gross, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + (r as any).taxable, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + (r as any).vat, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + (r as any).exempt, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + (r as any).zeroRated, 0))}</td>
+                        <td className="border-r border-zinc-950 dark:border-zinc-700 px-2 py-2 text-right font-mono">{formatCurrency(booksData.purchasesJournal.reduce((sum, r) => sum + (r as any).ewt, 0))}</td>
                         <td></td>
                       </tr>
                     </tbody>
@@ -1495,3 +1501,5 @@ PAGE NUMBER              : PAGE ${pageNum}
     </div>
   );
 };
+
+export default BooksModule;

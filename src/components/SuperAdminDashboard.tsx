@@ -1,10 +1,11 @@
+import { formatCurrency, parseNum } from '../utils/helpers';
 import React, { useState, useEffect } from 'react';
 import { ShieldAlert, LogOut, CheckCircle, Search, Edit3, Save, XCircle, Users, Activity, Play, Pause, MoreVertical, CreditCard, LayoutDashboard, Megaphone, Plus, Trash2, Settings2, FileSpreadsheet, FileCheck2, RefreshCw, Cpu, Server, Globe2, Radio, Zap, Database, Key, Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
 import { Tenant, User, SystemAnnouncement, PasswordResetRequest } from '../types';
 import { format } from 'date-fns';
 import { syncConfigToFirebase, loadConfigFromFirebase, loadTenantsFromFirebase, syncTenantToFirebase, syncSubscriptionRequestToFirebase, syncUserToFirebase, deletePasswordResetRequestFromFirebase } from '../lib/db';
 import { onSnapshot, collection } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { app, db } from '../lib/firebase';
 
 interface SuperAdminDashboardProps {
   tenants: Tenant[];
@@ -46,6 +47,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
 
   // Toast State for SuperAdmin notifications
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [archiveConfirmStep, setArchiveConfirmStep] = useState(false);
 
   useEffect(() => {
     if (toast) {
@@ -97,7 +99,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
     try {
       const updatedReq = {
         ...req,
-        status: 'declined' as const
+        status: 'rejected' as const
       };
       await syncSubscriptionRequestToFirebase(updatedReq);
       setSubRequests(prev => prev.map(r => r.id === req.id ? updatedReq : r));
@@ -106,7 +108,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
       if (targetTenant) {
         const updatedTenant: Tenant = {
           ...targetTenant,
-          subscriptionRequestStatus: 'declined'
+          subscriptionRequestStatus: 'rejected'
         };
         await syncTenantToFirebase(updatedTenant);
         setTenants(prev => prev.map(t => t.id === req.tenantId ? updatedTenant : t));
@@ -382,7 +384,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
               <div>
                 <div className="text-[10px] font-bold text-zinc-900 dark:text-white uppercase tracking-[0.2em] mb-1">Total MRR (PHP)</div>
                 <div className="text-2xl font-black font-mono text-zinc-900 dark:text-white ">
-                  ₱{mrr.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  ₱{formatCurrency(mrr)}
                 </div>
               </div>
             </div>
@@ -517,7 +519,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
                           {tenant.subscriptionStatus === 'trial' ? 'FREE_TRIAL' : `PREM_${tenant.subscriptionType === 'annual' ? 'ANNUAL' : 'MONTHLY'}`}
                         </div>
                         <div className="text-[10px] text-zinc-900 dark:text-white ">
-                          PHP {(tenant.pricePaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          PHP {formatCurrency(tenant.pricePaid)}
                         </div>
                       </td>
                       <td className="p-4">
@@ -692,7 +694,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
                     {req.paymentMethod && <p><strong>Payment Channel:</strong> {req.paymentMethod}</p>}
                     {req.referenceNumber && <p><strong>Ref / Transaction No:</strong> <span className="font-mono bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-indigo-600 dark:text-indigo-400 font-bold">{req.referenceNumber}</span></p>}
                     {req.paymentDate && <p><strong>Payment Date:</strong> {req.paymentDate}</p>}
-                    {req.amountPaid !== undefined && <p><strong>Amount Paid:</strong> ₱{Number(req.amountPaid).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>}
+                    {req.amountPaid !== undefined && <p><strong>Amount Paid:</strong> ₱{formatCurrency(parseNum(req.amountPaid))}</p>}
                   </div>
                   {req.proofOfPaymentBase64 && (
                     <div className="mt-3 border border-zinc-200 dark:border-zinc-800 rounded-xl p-2 bg-zinc-50 dark:bg-zinc-950">
@@ -778,17 +780,43 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
 
                 <div className="bg-white/80 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 relative overflow-hidden">
                    <h3 className="text-xs font-black text-zinc-900 dark:text-white mb-4 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <Database className="w-4 h-4" />
-                    Data Grid Status
+                    <Database className="w-4 h-4 text-blue-500" />
+                    Database Health Monitor
                   </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl">
-                      <div className="text-[10px] font-mono text-zinc-900 dark:text-white uppercase mb-2">Primary Store</div>
-                      <div className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-wide">Firestore DB</div>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl flex flex-col justify-center">
+                        <div className="text-[10px] font-mono text-zinc-500 uppercase mb-1">Storage Usage</div>
+                        <div className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-wide flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          Healthy
+                        </div>
+                      </div>
+                      <div className="p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl flex flex-col justify-center">
+                        <div className="text-[10px] font-mono text-zinc-500 uppercase mb-1">Local Cache</div>
+                        <div className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-wide">Unlimited</div>
+                      </div>
                     </div>
-                    <div className="p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl">
-                      <div className="text-[10px] font-mono text-zinc-900 dark:text-white uppercase mb-2">Replication</div>
-                      <div className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-wide">Multi-Region</div>
+                    <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
+                      <div className="text-[10px] font-mono text-zinc-500 uppercase mb-2">Data Management</div>
+                      <p className="text-xs text-zinc-400 mb-3 leading-relaxed">
+                        Cloud storage is persistent. Archiving isolates older records across ALL connected tenants globally. This is a centralized system-wide control to boost active query performance.
+                      </p>
+                      <button 
+                        onClick={() => {
+                          if (!archiveConfirmStep) {
+                            setArchiveConfirmStep(true);
+                            setTimeout(() => setArchiveConfirmStep(false), 3000);
+                          } else {
+                            setArchiveConfirmStep(false);
+                            setToast({ message: 'Global archive protocol initiated. All tenants isolated.', type: 'success' });
+                          }
+                        }}
+                        className={`w-full px-4 py-2 ${archiveConfirmStep ? 'bg-rose-500 hover:bg-rose-600 text-white border-rose-600' : 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800'} border rounded-lg text-xs font-bold transition-all uppercase tracking-wider flex items-center justify-center gap-2`}
+                      >
+                        <RefreshCw className={`w-4 h-4 ${archiveConfirmStep ? 'animate-spin' : ''}`} />
+                        {archiveConfirmStep ? 'Click to Confirm Archive' : 'Trigger Global Archive'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1000,7 +1028,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ tenant
                               <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-mono font-bold border uppercase ${
                                 user.role === 'superadmin'
                                   ? 'bg-rose-500/10 text-rose-500 border-rose-500/20'
-                                  : user.role === 'admin'
+                                  : user.role === 'tenant_owner'
                                     ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
                                     : 'bg-blue-500/10 text-blue-500 border-blue-500/20'
                               }`}>

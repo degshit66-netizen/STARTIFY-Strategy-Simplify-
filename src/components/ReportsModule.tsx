@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { FileText, Calendar, ShieldCheck, Scale, AlertTriangle, CheckCircle, Printer, Download, Percent, ShieldAlert, Award, FileSpreadsheet, Building } from 'lucide-react';
 import { LedgerEntry } from '../types';
 import { r2, displayMoney, inPeriod, parseNum, formatCurrency } from '../utils/helpers';
@@ -134,9 +134,9 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
     show: { opacity: 1, transition: { staggerChildren: 0.05 } }
   };
 
-  const itemVariants = {
+  const itemVariants: any = {
     hidden: { opacity: 0, y: 12 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100 } }
+    show: { opacity: 1, y: 0, transition: { type: 'spring' as any, stiffness: 100 } }
   };
 
   return (
@@ -594,7 +594,7 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
               <div 
                 onClick={() => {
                   if (grossSales1701Q > 3000000) {
-                    alert("Hindi kwalipikado sa 8% Flat Rate dahil ang iyong kabuuang benta ay lumampas sa ₱3,000,000 VAT Threshold.");
+                    
                     return;
                   }
                   setTaxRegime('flat8');
@@ -1026,3 +1026,5 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
     </motion.div>
   );
 };
+
+export default ReportsModule;

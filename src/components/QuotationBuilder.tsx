@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Plus, Trash2, Printer, Sparkles, FileText, Settings } from 'lucide-react';
 import { r2, displayMoney, parseNum, cleanDate, formatCurrency } from '../utils/helpers';
 import { loadConfigFromFirebase } from '../lib/db';
@@ -154,9 +154,9 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
     show: { opacity: 1, transition: { staggerChildren: 0.05 } }
   };
 
-  const itemVariants = {
+  const itemVariants: any = {
     hidden: { opacity: 0, y: 12 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100 } }
+    show: { opacity: 1, y: 0, transition: { type: 'spring' as any, stiffness: 100 } }
   };
 
   return (
@@ -540,3 +540,5 @@ export const QuotationBuilder: React.FC<QuotationBuilderProps> = ({
     </motion.div>
   );
 };
+
+export default QuotationBuilder;

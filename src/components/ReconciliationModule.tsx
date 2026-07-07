@@ -1,5 +1,6 @@
+import { PrintHeader } from './PrintHeader';
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Scale, CheckCircle, HelpCircle, Wallet } from 'lucide-react';
 import { 
   AreaChart, 
@@ -64,9 +65,9 @@ export const ReconciliationModule: React.FC<ReconciliationModuleProps> = ({
     show: { opacity: 1, transition: { staggerChildren: 0.05 } }
   };
 
-  const itemVariants = {
+  const itemVariants: any = {
     hidden: { opacity: 0, y: 12 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100 } }
+    show: { opacity: 1, y: 0, transition: { type: 'spring' as any, stiffness: 100 } }
   };
 
   return (
@@ -76,7 +77,8 @@ export const ReconciliationModule: React.FC<ReconciliationModuleProps> = ({
       animate="show"
       className="space-y-6"
     >
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5">
+      <PrintHeader title="Bank Reconciliation" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5 no-print">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white font-sans">⚖️ Reconciliation</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">Reconcile cash accounts with bank statement feeds, record bank fees, and clear outstanding checks.</p>
@@ -172,3 +174,5 @@ export const ReconciliationModule: React.FC<ReconciliationModuleProps> = ({
     </motion.div>
   );
 };
+
+export default ReconciliationModule;

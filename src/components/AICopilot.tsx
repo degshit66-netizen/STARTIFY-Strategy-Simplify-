@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Bot, 
   Send, 
@@ -293,7 +293,7 @@ I've automatically synchronized with your current Ledger and filters. What can I
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+            transition={{ type: 'spring' as any, damping: 25, stiffness: 220 }}
             className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 z-[200] shadow-2xl flex flex-col no-print"
           >
             {/* Header */}
@@ -435,3 +435,5 @@ I've automatically synchronized with your current Ledger and filters. What can I
     </AnimatePresence>
   );
 };
+
+export default AICopilot;

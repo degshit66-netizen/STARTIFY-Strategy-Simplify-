@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sparkles, 
   ArrowRight, 
@@ -555,3 +555,5 @@ export const FeatureTour: React.FC<FeatureTourProps> = ({ onComplete, onTabChang
     </>
   );
 };
+
+export default FeatureTour;

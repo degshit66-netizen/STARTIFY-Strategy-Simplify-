@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User, Tenant } from '../types';
 import { Building, ShieldCheck, ShieldAlert, Mail, Lock, ArrowRight, UserPlus, MapPin, Hash, Loader2, ArrowLeft, Key, CheckCircle } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { syncTenantToFirebase, syncUserToFirebase, getUserByEmail, loadTenantsFromFirebase, syncPasswordResetRequestToFirebase } from '../lib/db';
@@ -250,73 +250,25 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-5xl bg-gradient-to-br from-white to-blue-50 dark:from-zinc-900 dark:to-blue-950/30 rounded-[2rem] shadow-2xl overflow-hidden border border-blue-100 dark:border-blue-900/30 flex flex-col md:flex-row min-h-[700px]"
+        className="w-full max-w-[380px] bg-white dark:bg-zinc-900 rounded-[2rem] shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 flex flex-col relative"
       >
-        {/* Left Side: Brand & Hero (Desktop Only) */}
-        <div className="hidden md:flex md:w-5/12 bg-gradient-to-br from-blue-700 to-blue-900 p-12 flex-col justify-between relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-transparent to-indigo-600/20 pointer-events-none" />
-          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl" />
-          
-          <div className="relative z-10">
+        {/* Auth Form */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="pt-8 pb-4 text-center shrink-0">
             <img 
               src="https://i.postimg.cc/5yGwSWWR/1782659487700.png" 
               alt="STRATIFY Logo" 
-              className="w-20 h-20 mb-8 object-contain rounded-2xl shadow-xl shadow-blue-500/10"
+              className="w-12 h-12 mx-auto mb-2 object-contain rounded-xl shadow-md shadow-blue-900/20"
             />
-            <h2 className="text-4xl font-black text-white tracking-tighter mb-4 leading-tight">
-              Strategy <span className="text-blue-500">+</span><br />Simplify.
-            </h2>
-            <p className="text-zinc-400 text-lg font-medium leading-relaxed max-w-xs">
-              The complete enterprise resource platform for Philippine businesses.
-            </p>
+            <h1 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tighter">STRATIFY</h1>
           </div>
-
-          <div className="relative z-10 space-y-6">
-            <div className="flex items-center gap-4 text-zinc-300">
-              <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-5 h-5 text-blue-400" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-white uppercase tracking-widest">BIR Compliant</p>
-                <p className="text-[10px] text-zinc-500">Official ENCS / RR 09-2009 Ready</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 text-zinc-300">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
-                <Building className="w-5 h-5 text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-white uppercase tracking-widest">Multi-Tenant</p>
-                <p className="text-[10px] text-zinc-500">Secure isolated organizational data</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="relative z-10 pt-12 border-t border-white/5">
-            <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.3em]">Built for the modern enterprise</p>
-          </div>
-        </div>
-
-        {/* Right Side: Auth Form */}
-        <div className="flex-1 flex flex-col h-full overflow-hidden">
-          <div className="p-8 md:p-12 text-center md:text-left md:hidden bg-gradient-to-br from-blue-700 to-blue-900 border-b border-white/5 shrink-0">
-            <img 
-              src="https://i.postimg.cc/5yGwSWWR/1782659487700.png" 
-              alt="STRATIFY Logo" 
-              className="w-16 h-16 mx-auto mb-4 object-contain rounded-xl"
-            />
-            <h1 className="text-xl font-black text-white uppercase tracking-tighter">STRATIFY</h1>
-            <p className="text-blue-500 text-[10px] font-black tracking-widest uppercase">Strategy + Simplify</p>
-          </div>
-
-          <div className="flex-1 p-8 md:p-16 overflow-y-auto custom-scrollbar bg-transparent">
-            <div className="max-w-md mx-auto">
-              <div className="mb-10">
-                <h3 className="text-2xl font-black text-zinc-900 dark:text-white mb-2">
+          <div className="flex-1 px-6 pb-8 overflow-y-auto custom-scrollbar bg-transparent">
+            <div className="w-full">
+              <div className="mb-6">
+                <h3 className="text-xl font-black text-zinc-900 dark:text-white mb-1 text-center">
                   {isForgotPassword ? 'Reset Password' : isLogin ? 'Welcome back' : 'Start your journey'}
                 </h3>
-                <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium">
+                <p className="text-zinc-500 dark:text-zinc-400 text-xs font-medium text-center">
                   {isForgotPassword 
                     ? 'Submit a recovery request directly to the STRATIFY Admin Command Center to restore your account access.'
                     : isLogin 
@@ -379,7 +331,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                           required
                           value={forgotCompanyName}
                           onChange={e => setForgotCompanyName(e.target.value)}
-                          className="w-full pl-12 pr-4 py-3.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                          className="w-full pl-10 pr-4 py-2.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
                           placeholder="e.g. Acme Corporation"
                         />
                       </div>
@@ -396,7 +348,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                           required
                           value={forgotEmail}
                           onChange={e => setForgotEmail(e.target.value)}
-                          className="w-full pl-12 pr-4 py-3.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                          className="w-full pl-10 pr-4 py-2.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
                           placeholder="name@company.com"
                         />
                       </div>
@@ -411,7 +363,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                     <button 
                       type="submit" 
                       disabled={isSubmitting}
-                      className="w-full mt-4 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-[1.25rem] text-sm font-black flex items-center justify-center gap-3 hover:from-blue-700 hover:to-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-zinc-950/10 dark:shadow-white/5"
+                      className="w-full mt-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-[1.25rem] text-sm font-black flex items-center justify-center gap-3 hover:from-blue-700 hover:to-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-zinc-950/10 dark:shadow-white/5"
                     >
                       {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <>SEND RECOVERY REQUEST <ArrowRight className="w-4 h-4" /></>}
                     </button>
@@ -463,7 +415,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                               required
                               value={companyName}
                               onChange={e => setCompanyName(e.target.value)}
-                              className="w-full pl-12 pr-4 py-3.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                              className="w-full pl-10 pr-4 py-2.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
                               placeholder="e.g. Acme Corporation"
                             />
                           </div>
@@ -480,7 +432,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                                 required
                                 value={tin}
                                 onChange={e => setTin(e.target.value)}
-                                className="w-full pl-12 pr-4 py-3.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                                className="w-full pl-10 pr-4 py-2.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
                                 placeholder="000-000-000"
                               />
                             </div>
@@ -517,7 +469,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                               required
                               value={address}
                               onChange={e => setAddress(e.target.value)}
-                              className="w-full pl-12 pr-4 py-3.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                              className="w-full pl-10 pr-4 py-2.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
                               placeholder="Complete Business Address"
                             />
                           </div>
@@ -544,7 +496,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                         required
                         value={email}
                         onChange={e => setEmail(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                        className="w-full pl-10 pr-4 py-2.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
                         placeholder="name@company.com"
                       />
                     </div>
@@ -564,7 +516,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                           required={!isGoogleReg}
                           value={password}
                           onChange={e => setPassword(e.target.value)}
-                          className="w-full pl-12 pr-4 py-3.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
+                          className="w-full pl-10 pr-4 py-2.5 bg-white/50 dark:bg-zinc-950/50 border border-blue-100 dark:border-zinc-800 backdrop-blur-sm rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 text-sm text-zinc-900 dark:text-zinc-100 transition-all font-medium"
                           placeholder="••••••••"
                         />
                       </div>
@@ -590,7 +542,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                   <button 
                     type="submit" 
                     disabled={isSubmitting}
-                    className="w-full mt-4 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-[1.25rem] text-sm font-black flex items-center justify-center gap-3 hover:from-blue-700 hover:to-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-zinc-950/10 dark:shadow-white/5"
+                    className="w-full mt-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-[1.25rem] text-sm font-black flex items-center justify-center gap-3 hover:from-blue-700 hover:to-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-zinc-950/10 dark:shadow-white/5"
                   >
                     {isSubmitting ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
@@ -614,7 +566,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, tenants, setTenants, users,
                     type="button"
                     onClick={handleGoogleAuth}
                     disabled={isSubmitting}
-                    className="w-full py-4 bg-white/50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-blue-100 dark:border-zinc-700 backdrop-blur-sm rounded-[1.25rem] text-xs font-black flex items-center justify-center gap-3 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
+                    className="w-full py-3 bg-white/50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-blue-100 dark:border-zinc-700 backdrop-blur-sm rounded-[1.25rem] text-xs font-black flex items-center justify-center gap-3 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all shadow-sm active:scale-[0.98] disabled:opacity-50"
                   >
                     {isSubmitting ? (
                       <Loader2 className="w-5 h-5 animate-spin" />

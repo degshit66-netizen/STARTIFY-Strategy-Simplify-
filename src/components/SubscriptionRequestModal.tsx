@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Camera, Building, User, MapPin, Phone, UploadCloud } from 'lucide-react';
 import { Tenant } from '../types';
 import { syncSubscriptionRequestToFirebase, syncTenantToFirebase } from '../lib/db';

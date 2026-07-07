@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, CheckCircle, ChevronRight, Volume2, VolumeX, BookOpen, Layers, CreditCard, Landmark, Database, ShieldCheck } from 'lucide-react';
 import { Tenant } from '../types';
 
@@ -378,3 +378,5 @@ export const OnboardingWelcome: React.FC<Props> = ({ tenant, onComplete }) => {
     </div>
   );
 };
+
+export default OnboardingWelcome;

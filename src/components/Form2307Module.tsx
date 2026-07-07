@@ -120,7 +120,7 @@ export const Form2307Module: React.FC<Form2307ModuleProps> = ({
   useEffect(() => {
     const loadMappingAndTemplate = async () => {
       const mapping = await loadConfigFromFirebase("bir_2307_pdf_mapping");
-      if (mapping) setPdfMapping(mapping);
+      if (mapping) setPdfMapping(typeof mapping === "string" ? JSON.parse(mapping) : mapping);
       
       const templateBase64 = await loadConfigFromFirebase("bir_2307_master_pdf_template");
       if (templateBase64) setMasterTemplate(base64ToArrayBuffer(templateBase64));

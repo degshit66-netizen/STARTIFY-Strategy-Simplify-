@@ -1,5 +1,6 @@
+import { PrintHeader } from './PrintHeader';
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Edit2, Trash2, X, Users, Tag, Building, TrendingUp, TrendingDown } from 'lucide-react';
 import { ContactMaster, LedgerEntry } from '../types';
 import { r2, displayMoney, parseNum, formatCurrency } from '../utils/helpers';
@@ -241,9 +242,9 @@ export const ContactsModule: React.FC<ContactsModuleProps> = ({
     show: { opacity: 1, transition: { staggerChildren: 0.05 } }
   };
 
-  const itemVariants = {
+  const itemVariants: any = {
     hidden: { opacity: 0, y: 12 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100 } }
+    show: { opacity: 1, y: 0, transition: { type: 'spring' as any, stiffness: 100 } }
   };
 
   return (
@@ -253,7 +254,8 @@ export const ContactsModule: React.FC<ContactsModuleProps> = ({
       animate="show"
       className="space-y-6 relative"
     >
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5">
+      <PrintHeader title="Contacts Directory" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5 no-print">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white font-sans">👥 Master Client & Supplier CRM</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">Master database of business contacts, credit lines, default tax classes, and trade histories.</p>
@@ -375,7 +377,7 @@ export const ContactsModule: React.FC<ContactsModuleProps> = ({
         </div>
       </div>
 
-      <motion.div variants={itemVariants} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden">
+      <motion.div variants={itemVariants} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden print:border-0 print:shadow-none print:w-full">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[1200px]">
             <thead>
@@ -656,3 +658,5 @@ export const ContactsModule: React.FC<ContactsModuleProps> = ({
     </motion.div>
   );
 };
+
+export default ContactsModule;

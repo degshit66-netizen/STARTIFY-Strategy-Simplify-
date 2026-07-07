@@ -1,6 +1,7 @@
 import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { Tenant, User, PasswordResetRequest } from '../types';
+import * as idb from 'idb-keyval';
 
 // Let's store references to the raw, original localStorage methods to prevent recursion
 export const rawStorage = {
@@ -30,7 +31,7 @@ const isGlobalKey = (key: string) => {
 const getTenantKey = (key: string) => {
   if (isGlobalKey(key)) return key;
   try {
-    const tenantId = rawStorage.getItem.call(window.localStorage, 'current_tenant_id');
+    const tenantId = inMemoryStorage.get('current_tenant_id') || rawStorage.getItem.call(window.localStorage, 'current_tenant_id');
     if (tenantId) {
       return `${tenantId}_${key}`;
     }
@@ -38,12 +39,23 @@ const getTenantKey = (key: string) => {
   return key;
 };
 
+// In-memory store to bypass 5MB localStorage limit
+const inMemoryStorage = new Map<string, string>();
+
 // Apply the localStorage override
-export const initializeLocalStorageOverride = () => {
+export const initializeLocalStorageOverride = async () => {
   try {
+    const entries = await idb.entries();
+    for (const [k, v] of entries) {
+      if (typeof k === 'string' && typeof v === 'string') {
+        inMemoryStorage.set(k, v);
+      }
+    }
+
     Storage.prototype.getItem = function(key: string) {
       if (!key) return null;
-      return rawStorage.getItem.call(this, getTenantKey(key));
+      const tenantKey = getTenantKey(key);
+      return inMemoryStorage.get(tenantKey) || rawStorage.getItem.call(this, tenantKey);
     };
 
     Storage.prototype.setItem = function(key: string, value: string) {
@@ -76,7 +88,7 @@ export const initializeLocalStorageOverride = () => {
 
     Storage.prototype.clear = function() {
       try {
-        const tenantId = rawStorage.getItem.call(window.localStorage, 'current_tenant_id');
+        const tenantId = inMemoryStorage.get('current_tenant_id') || rawStorage.getItem.call(window.localStorage, 'current_tenant_id');
         if (!tenantId) {
           return;
         }
@@ -87,8 +99,15 @@ export const initializeLocalStorageOverride = () => {
             keysToRemove.push(k);
           }
         }
+        for (const k of inMemoryStorage.keys()) {
+          if (k.startsWith(`${tenantId}_`) && !keysToRemove.includes(k)) {
+            keysToRemove.push(k);
+          }
+        }
         keysToRemove.forEach(k => {
+          inMemoryStorage.delete(k);
           rawStorage.removeItem.call(window.localStorage, k);
+          idb.del(k).catch(() => {});
           const originalKey = k.replace(`${tenantId}_`, '');
           deleteStorageFromFirebase(tenantId, originalKey);
         });

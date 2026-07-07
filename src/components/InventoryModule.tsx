@@ -1,6 +1,7 @@
+import { PrintHeader } from './PrintHeader';
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import { Plus, AlertTriangle, CheckCircle, Package } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Plus, AlertTriangle, CheckCircle, Package , Printer} from 'lucide-react';
 import { LedgerEntry, COAAccount } from '../types';
 import { r2, displayMoney, parseNum, formatCurrency } from '../utils/helpers';
 
@@ -149,9 +150,9 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({
     show: { opacity: 1, transition: { staggerChildren: 0.05 } }
   };
 
-  const itemVariants = {
+  const itemVariants: any = {
     hidden: { opacity: 0, y: 12 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100 } }
+    show: { opacity: 1, y: 0, transition: { type: 'spring' as any, stiffness: 100 } }
   };
 
   return (
@@ -161,7 +162,8 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({
       animate="show"
       className="space-y-6"
     >
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5">
+      <PrintHeader title="Inventory Catalog" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5 no-print">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white font-sans">📦 Inventory</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">Inventory and services catalog, item codes, base unit costs, selling prices, and restock levels.</p>
@@ -169,9 +171,19 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({
         <div className="flex items-center gap-2 self-start sm:self-auto bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-xl text-xs font-bold text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
           <span>{deduped.length} items logged</span>
         </div>
+        <div className="no-print">
+          <button 
+            onClick={() => window.print()}
+            className="flex items-center gap-2 text-xs bg-zinc-950 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 dark:text-zinc-900 text-white font-bold px-4 py-2.5 rounded-xl transition-colors border border-zinc-800 shadow-sm focus:outline-none"
+            title="Print Inventory Report"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print Report</span>
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 no-print">
         <motion.div variants={itemVariants} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-2xl flex items-start justify-between shadow-sm">
           <div className="space-y-2">
             <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">Inventory Items</span>
@@ -373,7 +385,7 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({
         </div>
       </div>
 
-      <motion.div variants={itemVariants} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden">
+      <motion.div variants={itemVariants} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden print:border-0 print:shadow-none print:w-full">
         <div className="border-b border-zinc-100 dark:border-zinc-800 p-5">
           <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">Item & Services Registry</h3>
           <p className="text-xs text-zinc-500 mt-1">Listing items. Quantities are subtracted dynamically by Sales and increased by Purchase ledgers.</p>
@@ -451,3 +463,5 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({
     </motion.div>
   );
 };
+
+export default InventoryModule;

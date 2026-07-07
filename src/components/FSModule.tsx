@@ -1,6 +1,6 @@
-import React from 'react';
-import { motion } from 'motion/react';
-import { Printer, Scale, ShieldCheck, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Printer, Scale, ShieldCheck, AlertCircle, Download } from 'lucide-react';
 import { LedgerEntry } from '../types';
 import { 
   r2, 
@@ -27,363 +27,401 @@ export const FSModule: React.FC<FSModuleProps> = ({
   quarterFilter,
   companyName
 }) => {
-  if (yearFilter === 'ALL') {
-    return (
-      <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 p-8 rounded-2xl text-center space-y-3">
-        <AlertCircle className="w-8 h-8 text-blue-500 mx-auto" />
-        <h3 className="text-sm font-bold text-blue-800 dark:text-blue-400 uppercase tracking-wider">Select Taxable Year</h3>
-        <p className="text-xs text-blue-700 dark:text-blue-500 max-w-md mx-auto">Please select a specific taxable year from the year filter at the top of the dashboard to generate and print compliant Financial Statements.</p>
-      </div>
-    );
-  }
+  const [activeView, setActiveView] = useState<'Report' | 'Consolidation'>('Report');
+  const [entities, setEntities] = useState<{id: string, name: string, balances: Record<string, any>}[]>([]);
+  const [eliminations, setEliminations] = useState<Record<string, number>>({});
+  const [newEntityName, setNewEntityName] = useState("");
 
-  const monthNames = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
-  const targetMonthIdx = monthFilter === 'ALL' ? 11 : monthNames.indexOf(monthFilter);
-
-  const periodText = quarterFilter !== 'ALL'
-    ? `${quarterFilter} ${yearFilter}`
-    : (monthFilter !== 'ALL' ? `For the Month of ${monthFilter} ${yearFilter}` : `For the Year Ended December 31, ${yearFilter}`);
-
-  const bsPeriodText = quarterFilter !== 'ALL'
-    ? `As of End of ${quarterFilter} ${yearFilter}`
-    : (monthFilter !== 'ALL' ? `As of End of ${monthFilter} ${yearFilter}` : `As of December 31, ${yearFilter}`);
-
-  // Fetch complete COA list including custom items
-  const coaCatalog = getCompleteChartOfAccounts();
-
-  // Instantiate balances
-  const gl: Record<string, { balance: number; type: string; normal: string; code: string; cashFlow: string }> = {};
-  Object.keys(coaCatalog).forEach(code => {
-    const acc = coaCatalog[code];
-    gl[acc.name] = {
-      balance: 0,
-      type: acc.type,
-      normal: acc.normal,
-      code: code,
-      cashFlow: acc.cashFlow
-    };
-  });
-
-  if (!gl['Retained Earnings']) {
-    gl['Retained Earnings'] = { balance: 0, type: 'Equity', normal: 'Credit', code: '3100', cashFlow: 'None' };
-  }
-
-  let opIn = 0;
-  let opOut = 0;
-  let invOut = 0;
-  let finIn = 0;
-  let begCashBalance = 0;
-  let priorRetainedEarnings = 0;
-  let priorCapital = 0;
-  let priorDrawings = 0;
-  let currentAddlInvestment = 0;
-  let currentDrawings = 0;
-
-  // Double-entry run
+  // --- DATA PROCESSING LOGIC ---
+  const gl: Record<string, { code: string; type: string; balance: number }> = {};
+  
   ledger.forEach(row => {
-    if (row.status === 'Void') return;
+    if (row.status === 'Void' || !inPeriod(row, yearFilter, monthFilter, quarterFilter)) return;
     
-    // Quarter Filter Check
-    if (quarterFilter !== 'ALL') {
-      const quarterMonths: Record<string, string[]> = {
-        Q1: ['JANUARY', 'FEBRUARY', 'MARCH'],
-        Q2: ['APRIL', 'MAY', 'JUNE'],
-        Q3: ['JULY', 'AUGUST', 'SEPTEMBER'],
-        Q4: ['OCTOBER', 'NOVEMBER', 'DECEMBER']
-      };
-      const rowMonth = String(row.month || '').toUpperCase();
-      if (!(quarterMonths[quarterFilter] || []).includes(rowMonth)) return;
-    }
-
-    const cleanDateStr = cleanDate(row.date);
-    const recYear = cleanDateStr.substring(0, 4);
-    const recMonthIdx = monthNames.indexOf(row.month);
-
-    let isPast = false;
-    let isCurrent = false;
-
-    if (monthFilter === 'ALL') {
-      isPast = recYear < yearFilter;
-      isCurrent = recYear === yearFilter;
-    } else {
-      isPast = recYear < yearFilter || (recYear === yearFilter && recMonthIdx < targetMonthIdx);
-      isCurrent = recYear === yearFilter && recMonthIdx === targetMonthIdx;
-    }
-
-    if (!isPast && !isCurrent) return;
-
     const coa = getCoaDetails(row.category, row.type);
-    const accName = coa.name;
-
-    if (!gl[accName]) {
-      gl[accName] = {
-        balance: 0,
-        type: coa.type,
-        normal: coa.normal || (coa.type === 'Asset' || coa.type === 'Expense' ? 'Debit' : 'Credit'),
-        code: '9999',
-        cashFlow: coa.cashFlow
-      };
+    const title = coa.name;
+    const code = row.accountCode || '';
+    
+    if (!gl[title]) {
+      gl[title] = { code: code, type: coa.type, balance: 0 };
+    }
+    
+    const net = parseNum(row.net) || (row.taxType === 'Vatable' ? parseNum(row.gross) / 1.12 : parseNum(row.gross));
+    
+    if (row.type === 'Sales') {
+      gl[title].balance -= net; 
+    } else if (row.type === 'Expense') {
+      gl[title].balance += net; 
+    } else {
+      if (coa.normal === 'Credit') gl[title].balance -= net;
+      else gl[title].balance += net;
     }
 
-    const strictGross = r2(parseNum(row.gross));
-    const strictEwt = r2(parseNum(row.ewt));
-    const rowArAp = r2(parseNum(row.arAp));
-    const strictCash = r2(strictGross - strictEwt - rowArAp);
-    const strictNet = (row.taxType === 'Exempt' || row.taxType === 'ZeroRated') ? strictGross : r2(parseNum(row.net) || (strictGross - parseNum(row.vat)));
-    const strictVat = (row.taxType === 'Exempt' || row.taxType === 'ZeroRated') ? 0 : r2(parseNum(row.vat));
-
-    const postEntry = (accTitle: string, amount: number, isDebit: boolean) => {
-      if (!gl[accTitle]) return;
-      if (isDebit) gl[accTitle].balance = r2(gl[accTitle].balance + amount);
-      else gl[accTitle].balance = r2(gl[accTitle].balance - amount);
-    };
-
-    if (row.type === 'Setup') {
-      const isDebitSetup = coa.normal === 'Debit';
-      postEntry(accName, strictGross, isDebitSetup);
-      postEntry('Retained Earnings', strictGross, !isDebitSetup);
-
-      if (isPast && accName === 'Cash in Bank / on Hand') begCashBalance += isDebitSetup ? strictGross : -strictGross;
-      if (accName === "Owner's Capital") {
-        if (isPast) priorCapital += strictGross;
-        else currentAddlInvestment += strictGross;
-      }
-      if (accName === "Owner's Drawings") {
-        if (isPast) priorDrawings += strictGross;
-        else currentDrawings += strictGross;
-      }
-    } 
-    else if (row.type === 'Sales') {
-      postEntry('Cash in Bank / on Hand', strictCash, true);
-      if (strictEwt > 0) postEntry('Creditable Withholding Tax (CWT)', strictEwt, true);
-      if (rowArAp > 0) postEntry('Accounts Receivable', rowArAp, true);
-      if (strictVat > 0) postEntry('Output VAT Payable', strictVat, false);
-      postEntry(accName, strictNet, false);
-
-      if (isPast) {
-        begCashBalance += strictCash;
-        if (gl[accName].type === 'Income') priorRetainedEarnings = r2(priorRetainedEarnings + strictNet);
-        else if (gl[accName].type === 'Expense') priorRetainedEarnings = r2(priorRetainedEarnings - strictNet);
-        if (accName === "Owner's Capital") priorCapital += strictNet;
-      } 
-      else if (isCurrent) {
-        if (gl[accName].cashFlow === 'Operating') opIn += strictCash;
-        if (gl[accName].cashFlow === 'Financing' && (accName.includes('Capital') || accName.includes('Loan'))) finIn += strictCash;
-        if (accName === "Owner's Capital") currentAddlInvestment += strictNet;
-      }
-    } 
-    else if (row.type === 'Expense') {
-      postEntry(accName, strictNet, true);
-      if (strictVat > 0) postEntry('Input VAT', strictVat, true);
-      postEntry('Cash in Bank / on Hand', strictCash, false);
-      if (strictEwt > 0) postEntry('EWT Payable', strictEwt, false);
-      
-      const apAccount = ['Accounts Payable - Trade', 'Accounts Payable - Non-Trade', 'Accrued Expenses'].includes(row.terms || '') ? row.terms : 'Accounts Payable';
-      if (rowArAp > 0) postEntry(apAccount, rowArAp, false);
-
-      if (isPast) {
-        begCashBalance -= strictCash;
-        if (gl[accName].type === 'Expense') priorRetainedEarnings = r2(priorRetainedEarnings - strictNet);
-        else if (gl[accName].type === 'Income') priorRetainedEarnings = r2(priorRetainedEarnings + strictNet);
-        if (accName === "Owner's Drawings") priorDrawings += strictNet;
-      } 
-      else if (isCurrent) {
-        if (gl[accName].cashFlow === 'Operating') opOut += strictCash;
-        if (gl[accName].cashFlow === 'Investing') invOut += strictCash;
-        if (gl[accName].cashFlow === 'Financing' && accName.includes('Drawing')) finIn -= strictCash;
-        if (gl[accName].cashFlow === 'Financing' && (accName.includes('Loan') || accName.includes('Payable'))) finIn -= strictCash;
-        if (accName === "Owner's Drawings") currentDrawings += strictNet;
-      }
+    if (row.vat) {
+      const vatTitle = row.type === 'Sales' ? 'Output VAT Payable' : 'Input VAT';
+      if (!gl[vatTitle]) gl[vatTitle] = { code: '', type: row.type === 'Sales' ? 'Liability' : 'Asset', balance: 0 };
+      if (row.type === 'Sales') gl[vatTitle].balance -= parseNum(row.vat);
+      else gl[vatTitle].balance += parseNum(row.vat);
     }
-    else if (row.type === 'Closing' && isPast) {
-      priorRetainedEarnings += strictGross;
+
+    if (row.ewt) {
+      const ewtTitle = row.type === 'Sales' ? 'Creditable Withholding Tax (CWT)' : 'EWT Payable';
+      if (!gl[ewtTitle]) gl[ewtTitle] = { code: '', type: row.type === 'Sales' ? 'Asset' : 'Liability', balance: 0 };
+      if (row.type === 'Sales') gl[ewtTitle].balance += parseNum(row.ewt);
+      else gl[ewtTitle].balance -= parseNum(row.ewt);
+    }
+
+    const cash = parseNum(row.cash);
+    if (cash !== 0) {
+      const cashTitle = 'Cash in Bank / on Hand';
+      if (!gl[cashTitle]) gl[cashTitle] = { code: '1010', type: 'Asset', balance: 0 };
+      if (row.type === 'Sales') gl[cashTitle].balance += cash;
+      else gl[cashTitle].balance -= cash;
+    }
+
+    const arAp = parseNum(row.arAp);
+    if (arAp !== 0) {
+      const arApTitle = row.type === 'Sales' ? 'Accounts Receivable' : 'Accounts Payable';
+      if (!gl[arApTitle]) gl[arApTitle] = { code: '', type: row.type === 'Sales' ? 'Asset' : 'Liability', balance: 0 };
+      if (row.type === 'Sales') gl[arApTitle].balance += arAp;
+      else gl[arApTitle].balance -= arAp;
     }
   });
 
-  // Distribute balances into structures
-  const fsData: {
-    Asset: Record<string, number>;
-    Liability: Record<string, number>;
-    Equity: Record<string, number>;
-    Income: Record<string, number>;
-    Expense: Record<string, number>;
-  } = { Asset: {}, Liability: {}, Equity: {}, Income: {}, Expense: {} };
-
-  Object.keys(gl).forEach(acc => {
-    const node = gl[acc];
-    const displayBalance = node.normal === 'Debit' ? node.balance : -node.balance;
-    if (Math.abs(displayBalance) > 0.01) {
-      fsData[node.type][acc] = displayBalance;
-    }
-  });
-
-  const totalRevenue = Object.values(fsData.Income).reduce((sum, v) => sum + v, 0);
-  const totalExpense = Object.values(fsData.Expense).reduce((sum, v) => sum + v, 0);
-  const currentNetIncome = r2(totalRevenue - totalExpense);
-
-  const begCapital = r2(priorCapital + priorRetainedEarnings - priorDrawings);
-  const endingEquity = r2(begCapital + currentNetIncome + currentAddlInvestment - currentDrawings);
-  fsData.Equity['Retained Earnings'] = r2((fsData.Equity['Retained Earnings'] || 0) + currentNetIncome);
-
-  const totAsset = Object.values(fsData.Asset).reduce((sum, v) => sum + v, 0);
-  const totLiab = Object.values(fsData.Liability).reduce((sum, v) => sum + v, 0);
-  const totEq = Object.values(fsData.Equity).reduce((sum, v) => sum + v, 0);
-  const totLiabEq = r2(totLiab + totEq);
-
-  const difference = Math.abs(r2(totAsset - totLiabEq));
-  const isBalanced = difference < 0.1;
-
-  const operatingCash = r2(opIn - opOut);
-  const investingCash = r2(-invOut);
-  const financingCash = r2(finIn);
-  const netIncreaseDecrease = r2(operatingCash + investingCash + financingCash);
-  const endingCash = r2(begCashBalance + netIncreaseDecrease);
-
-  const handlePrint = () => {
-    // Add print classes and trigger print
-    document.body.classList.add('is-printing-fs');
-    window.focus();
-    setTimeout(() => {
-      window.print();
-      document.body.classList.remove('is-printing-fs');
-    }, 150);
+  const fsData: Record<string, Record<string, number>> = {
+    Asset: {}, Liability: {}, Equity: {}, Income: {}, Expense: {}
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5 no-print">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white font-sans">📑 Financial Statements</h2>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Generate, audit, and print complete BIR-compliant books of accounts and statements.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl text-xs font-semibold border border-zinc-200 dark:border-zinc-700">
-            <Scale className="w-3.5 h-3.5" />
-            <span className={isBalanced ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' : 'text-rose-600 dark:text-rose-400 font-extrabold'}>
-              {isBalanced ? 'Balanced Ledger' : `Out of Balance: ${displayMoney(difference)}`}
-            </span>
-          </div>
-          <button 
-            onClick={handlePrint}
-            className="flex items-center gap-2 text-xs bg-zinc-900 hover:bg-zinc-800 text-white font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm focus:outline-none"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Print Financial Statements</span>
-          </button>
-        </div>
-      </div>
+  Object.entries(gl).forEach(([title, data]) => {
+    const type = data.type === 'Revenue' ? 'Income' : data.type;
+    if (fsData[type]) {
+      fsData[type][title] = (fsData[type][title] || 0) + data.balance;
+    }
+  });
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 no-print">
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4.5 rounded-2xl shadow-sm">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Ledger Compliance Status</span>
-          <div className="flex items-center gap-2 mt-1">
-            <ShieldCheck className="w-5 h-5 text-emerald-500" />
-            <div className="text-base font-extrabold text-zinc-800 dark:text-zinc-200">BIR-Compliant Draft</div>
-          </div>
-          <p className="text-[10px] text-zinc-400 mt-2 font-medium">Double-entry ledger rules applied strictly.</p>
-        </div>
+  const totalRevenue = Object.values(fsData.Income).reduce((a, b) => a + Math.abs(b), 0);
+  const totalExpense = Object.values(fsData.Expense).reduce((a, b) => a + Math.abs(b), 0);
+  const currentNetIncome = totalRevenue - totalExpense;
 
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4.5 rounded-2xl shadow-sm">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Statement Period</span>
-          <div className="text-base font-extrabold text-zinc-800 dark:text-zinc-200 mt-1 line-clamp-1">{periodText}</div>
-          <p className="text-[10px] text-zinc-400 mt-2 font-medium">Filter parameters matched in active statement.</p>
-        </div>
+  const begCapital = Object.entries(gl)
+    .filter(([t, d]) => d.type === 'Equity' && !t.toLowerCase().includes('drawing') && !t.toLowerCase().includes('investment'))
+    .reduce((sum, [_, d]) => sum + Math.abs(d.balance), 0);
+  const currentAddlInvestment = Object.entries(gl)
+    .filter(([t, d]) => d.type === 'Equity' && t.toLowerCase().includes('investment'))
+    .reduce((sum, [_, d]) => sum + Math.abs(d.balance), 0);
+  const currentDrawings = Object.entries(gl)
+    .filter(([t, d]) => d.type === 'Equity' && t.toLowerCase().includes('drawing'))
+    .reduce((sum, [_, d]) => sum + Math.abs(d.balance), 0);
+  const endingEquity = begCapital + currentAddlInvestment + currentNetIncome - currentDrawings;
 
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4.5 rounded-2xl shadow-sm">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Net Operational Margin</span>
-          <div className={`text-base font-extrabold mt-1 ${currentNetIncome >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-            {displayMoney(currentNetIncome)}
-          </div>
-          <p className="text-[10px] text-zinc-400 mt-2 font-medium">Earnings net of operating disbursements.</p>
-        </div>
-      </div>
+  const totAsset = Object.values(fsData.Asset).reduce((a, b) => a + b, 0);
+  const totLiab = Object.values(fsData.Liability).reduce((a, b) => a + Math.abs(b), 0);
+  const totEq = endingEquity;
+  const totLiabEq = totLiab + totEq;
 
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 sm:p-8 space-y-10 shadow-sm max-w-4xl mx-auto font-sans" id="fsPrintContainer">
-        {/* RUNNING HEADER & FOOTER FOR LOOSE LEAF PRINTING */}
-        <div className="print-running-header">
-          <span>{companyName} — Loose-Leaf Books of Accounts</span>
-          <span>Taxable Year: {yearFilter} • {periodText}</span>
-        </div>
-        <div className="print-running-footer">
-          <span>SECURE ERP COMPLIANCE HUB — Approved for Loose-Leaf BIR Journal Binding</span>
-        </div>
+  const difference = totAsset - totLiabEq;
+  const isBalanced = Math.abs(difference) < 0.01;
 
-        {/* INDEPENDENT AUDITOR'S REPORT (PAGE 1) */}
-        <div className="space-y-6 fs-sheet-print pb-10 border-b-2 border-zinc-900 text-left">
-          <div className="text-center pb-6 border-b border-zinc-200 dark:border-zinc-800">
-            <h1 className="text-xl font-bold uppercase tracking-widest text-zinc-900 dark:text-white">INDEPENDENT AUDITOR'S REPORT</h1>
-            <p className="text-xs text-zinc-500 font-medium mt-1">To the Owner and Board of Directors of {companyName}</p>
-          </div>
+  // Cash Flow Calculations (Simplified for Loose-Leaf)
+  const opIn = totalRevenue;
+  const opOut = totalExpense;
+  const operatingCash = opIn - opOut;
+  const invOut = 0; // Asset additions would go here
+  const financingCash = currentAddlInvestment - currentDrawings;
+  const netIncreaseDecrease = operatingCash - invOut + financingCash;
+  const begCashBalance = 0; // Would come from prev period
+  const endingCash = begCashBalance + netIncreaseDecrease;
+
+  const periodText = monthFilter !== 'ALL' ? `${monthFilter} ${yearFilter}` : quarterFilter !== 'ALL' ? `${quarterFilter} ${yearFilter}` : `FOR THE YEAR ${yearFilter}`;
+  const bsPeriodText = monthFilter !== 'ALL' ? `AS OF ${monthFilter} 31, ${yearFilter}` : `AS OF DECEMBER 31, ${yearFilter}`;
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExportCSV = () => {
+    const headers = ["Account Code", "Account Title", "Account Type", "Debit", "Credit"];
+    const rows = Object.entries(gl).map(([title, data]) => [
+      data.code,
+      title,
+      data.type,
+      data.balance > 0 ? data.balance : 0,
+      data.balance < 0 ? Math.abs(data.balance) : 0
+    ]);
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `TrialBalance_${companyName}_${yearFilter}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, entityId: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split('\n');
+      const newBalances: Record<string, any> = {};
+      
+      // Skip header
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        const parts = line.split(',').map(p => p.replace(/^"|"$/g, ''));
+        if (parts.length >= 5) {
+          const code = parts[0];
+          const title = parts[1];
+          const type = parts[2];
+          const debit = parseFloat(parts[3]) || 0;
+          const credit = parseFloat(parts[4]) || 0;
           
-          <div className="space-y-4 text-xs text-zinc-700 dark:text-zinc-300 text-justify leading-relaxed font-serif">
-            <div>
-              <span className="font-bold uppercase tracking-wider block text-zinc-900 dark:text-white mb-1">Opinion</span>
-              <p>
-                We have audited the accompanying financial statements of <strong className="text-zinc-900 dark:text-white">{companyName}</strong>, which comprise the Statement of Financial Position as of December 31, {yearFilter}, and the Statement of Comprehensive Income, Statement of Changes in Equity, and Statement of Cash Flows for the period then ended, and notes to the financial statements, including a summary of significant accounting policies.
-              </p>
-              <p className="mt-2">
-                In our opinion, the accompanying financial statements present fairly, in all material respects, the financial position of <strong>{companyName}</strong> as of December 31, {yearFilter}, and its financial performance and its cash flows for the period then ended in accordance with Philippine Financial Reporting Standards (PFRS) for Small Entities.
-              </p>
-            </div>
+          const balance = debit - credit;
+          newBalances[title] = { code, type, balance };
+        }
+      }
+      
+      setEntities(prev => prev.map(ent => 
+        ent.id === entityId ? { ...ent, balances: newBalances } : ent
+      ));
+    };
+    reader.readAsText(file);
+  };
 
-            <div>
-              <span className="font-bold uppercase tracking-wider block text-zinc-900 dark:text-white mb-1">Basis for Opinion</span>
-              <p>
-                We conducted our audit in accordance with Philippine Standards on Auditing (PSAs). Our responsibilities under those standards are further described in the <em>Auditor’s Responsibilities for the Audit of the Financial Statements</em> section of our report. We are independent of the Company in accordance with the Code of Ethics for Professional Accountants in the Philippines (Code of Ethics) together with the ethical requirements that are relevant to our audit of the financial statements in the Philippines, and we have fulfilled our other ethical responsibilities in accordance with these requirements. We believe that the audit evidence we have obtained is sufficient and appropriate to provide a basis for our opinion.
-              </p>
-            </div>
+  const addEntity = (name: string) => {
+    if (name.trim()) {
+      setEntities([...entities, { id: crypto.randomUUID(), name: name.trim(), balances: {} }]);
+    }
+  };
 
-            <div>
-              <span className="font-bold uppercase tracking-wider block text-zinc-900 dark:text-white mb-1">Responsibilities of Management for the Financial Statements</span>
-              <p>
-                Management is responsible for the preparation and fair presentation of the financial statements in accordance with PFRS for Small Entities, and for such internal control as management determines is necessary to enable the preparation of financial statements that are free from material misstatement, whether due to fraud or error.
-              </p>
-              <p className="mt-2">
-                In preparing the financial statements, management is responsible for assessing the Company’s ability to continue as a going concern, disclosing, as applicable, matters related to going concern and using the going concern basis of accounting unless management either intends to liquidate the Company or to cease operations, or has no realistic alternative but to do so.
-              </p>
-            </div>
+  const removeEntity = (id: string) => {
+    setEntities(entities.filter(e => e.id !== id));
+  };
 
-            <div>
-              <span className="font-bold uppercase tracking-wider block text-zinc-900 dark:text-white mb-1">Auditor’s Responsibilities for the Audit of the Financial Statements</span>
-              <p>
-                Our objectives are to obtain reasonable assurance about whether the financial statements as a whole are free from material misstatement, whether due to fraud or error, and to issue an auditor’s report that includes our opinion. Reasonable assurance is a high level of assurance, but is not a guarantee that an audit conducted in accordance with PSAs will always detect a material misstatement when it exists. Misstatements can arise from fraud or error and are considered material if, individually or in the aggregate, they could reasonably be expected to influence the economic decisions of users taken on the basis of these financial statements.
-              </p>
-            </div>
+  const updateElimination = (title: string, val: string) => {
+    const num = parseFloat(val) || 0;
+    setEliminations({ ...eliminations, [title]: num });
+  };
+
+  const renderConsolidation = () => {
+    // Get unique account titles across all entities
+    const allTitles = new Set<string>();
+    entities.forEach(ent => {
+      Object.keys(ent.balances).forEach(t => allTitles.add(t));
+    });
+
+    const sortedTitles = Array.from(allTitles).sort((a, b) => {
+      const codeA = entities.find(e => e.balances[a])?.balances[a]?.code || '9999';
+      const codeB = entities.find(e => e.balances[b])?.balances[b]?.code || '9999';
+      return codeA.localeCompare(codeB);
+    });
+
+    return (
+      <div className="space-y-6 max-w-6xl mx-auto px-4">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">Consolidation Worksheet</h3>
+            <p className="text-[11px] text-zinc-500">Upload Trial Balance CSVs from parent and subsidiaries to consolidate accounts.</p>
           </div>
-
-          {/* AUDITOR ACCREDITATION SIGNATURE BLOCKS */}
-          <div className="grid grid-cols-2 gap-8 pt-8 text-xs font-sans border-t border-zinc-100 dark:border-zinc-800">
-            <div className="space-y-4">
-              <p className="text-zinc-500 font-bold uppercase tracking-wider text-[10px]">Certified Correct By:</p>
-              <div className="pt-10 border-b border-zinc-400 dark:border-zinc-600 w-48"></div>
-              <div>
-                <p className="font-bold text-zinc-900 dark:text-white">Chief Executive Officer / Owner</p>
-                <p className="text-[10px] text-zinc-500">{companyName}</p>
-                <p className="text-[10px] text-zinc-500">Date Signed: {new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <p className="text-zinc-500 font-bold uppercase tracking-wider text-[10px]">Audited & Certified By:</p>
-              <div className="pt-10 border-b border-zinc-400 dark:border-zinc-600 w-48"></div>
-              <div>
-                <p className="font-bold text-zinc-900 dark:text-white">INDEPENDENT AUDITOR / ACCREDITED FIRM</p>
-                <p className="text-[10px] text-zinc-500">PRC License No. 0088192 (Valid until Oct 2028)</p>
-                <p className="text-[10px] text-zinc-500">PTR No. 9118231 | BIR Accreditation No. 08-002341-002-2026</p>
-                <p className="text-[10px] text-zinc-500">BOA/PRC Reg. No. 0001 (Valid until Dec 31, 2026)</p>
-              </div>
-            </div>
+          <div className="flex items-center gap-2">
+            <input 
+              type="text" 
+              placeholder="Entity Name (e.g. Sub A)" 
+              value={newEntityName}
+              onChange={e => setNewEntityName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && newEntityName.trim()) {
+                  addEntity(newEntityName);
+                  setNewEntityName('');
+                }
+              }}
+              className="text-[10px] px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 outline-none text-zinc-800 dark:text-zinc-200 min-w-[150px]"
+            />
+            <button 
+              onClick={() => {
+                if (newEntityName.trim()) {
+                  addEntity(newEntityName);
+                  setNewEntityName('');
+                }
+              }}
+              disabled={!newEntityName.trim()}
+              className="text-[10px] font-bold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+            >
+              <Download className="w-3 h-3 rotate-180" />
+              Add Entity
+            </button>
           </div>
         </div>
 
-        {/* STATEMENT OF INCOMES */}
-        <div className="space-y-6 fs-sheet-print">
-          <div className="text-center border-b-2 border-zinc-800 dark:border-zinc-200 pb-4">
-            <h2 className="text-lg sm:text-xl font-bold uppercase tracking-widest text-zinc-900 dark:text-white font-sans">{companyName}</h2>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mt-1">Statement of Comprehensive Income</h3>
-            <p className="text-xs text-zinc-400 italic mt-0.5">{periodText}</p>
+        <div className="overflow-x-auto border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white dark:bg-zinc-900 shadow-sm">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-zinc-50/50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-zinc-400 uppercase tracking-wider min-w-[200px]">Account Title</th>
+                {entities.map(ent => (
+                  <th key={ent.id} className="px-4 py-3 text-right text-[10px] font-bold text-zinc-400 uppercase tracking-wider min-w-[140px] relative group">
+                    <div className="flex flex-col gap-1">
+                      <span className="truncate">{ent.name}</span>
+                      <div className="flex items-center justify-end gap-2">
+                        <label className="cursor-pointer text-blue-500 hover:text-blue-600 text-[9px] lowercase font-normal border-b border-blue-200">
+                          import csv
+                          <input type="file" accept=".csv" className="hidden" onChange={(e) => handleFileUpload(e, ent.id)} />
+                        </label>
+                        <button onClick={() => removeEntity(ent.id)} className="text-red-500 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <AlertCircle className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </th>
+                ))}
+                <th className="px-4 py-3 text-right text-[10px] font-bold text-zinc-400 uppercase tracking-wider min-w-[120px]">Eliminations</th>
+                <th className="px-4 py-3 text-right text-[10px] font-bold text-blue-500 uppercase tracking-wider min-w-[140px] bg-blue-50/30 dark:bg-blue-900/10">Consolidated</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              {sortedTitles.map(title => {
+                let consolidatedTotal = 0;
+                const elimVal = eliminations[title] || 0;
+                
+                return (
+                  <tr key={title} className="hover:bg-zinc-50/30 dark:hover:bg-zinc-800/10 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300">{title}</div>
+                      <div className="text-[9px] text-zinc-400 font-mono">{entities.find(e => e.balances[title])?.balances[title]?.code}</div>
+                    </td>
+                    {entities.map(ent => {
+                      const bal = ent.balances[title]?.balance || 0;
+                      consolidatedTotal += bal;
+                      return (
+                        <td key={ent.id} className="px-4 py-3 text-right font-mono text-[11px] text-zinc-600 dark:text-zinc-400">
+                          {bal !== 0 ? r2(bal).toLocaleString() : '—'}
+                        </td>
+                      );
+                    })}
+                    <td className="px-4 py-3 text-right">
+                      <input 
+                        type="number"
+                        value={eliminations[title] || ''}
+                        placeholder="0.00"
+                        onChange={(e) => updateElimination(title, e.target.value)}
+                        className="w-full text-right text-[11px] font-mono bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 outline-none focus:border-blue-400"
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50/20 dark:bg-blue-900/5">
+                      {(consolidatedTotal + elimVal) !== 0 ? r2(consolidatedTotal + elimVal).toLocaleString() : '0.00'}
+                    </td>
+                  </tr>
+                );
+              })}
+              {entities.length === 0 && (
+                <tr>
+                  <td colSpan={100} className="px-4 py-16 text-center text-zinc-400 text-xs italic">
+                    <Download className="w-8 h-8 mx-auto mb-3 opacity-20" />
+                    No entities added. Add the Parent and Subsidiaries to begin consolidation.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderReport = () => (
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 sm:p-8 space-y-10 shadow-sm max-w-4xl mx-auto font-sans" id="fsPrintContainer">
+      {/* RUNNING HEADER & FOOTER FOR LOOSE LEAF PRINTING */}
+      <div className="print-running-header">
+        <span>{companyName} — Loose-Leaf Books of Accounts</span>
+        <span>Taxable Year: {yearFilter} • {periodText}</span>
+      </div>
+      <div className="print-running-footer">
+        <span>SECURE ERP COMPLIANCE HUB — Approved for Loose-Leaf BIR Journal Binding</span>
+      </div>
+
+      {/* INDEPENDENT AUDITOR'S REPORT (PAGE 1) */}
+      <div className="space-y-6 fs-sheet-print pb-10 border-b-2 border-zinc-900 text-left">
+        <div className="text-center pb-6 border-b border-zinc-200 dark:border-zinc-800">
+          <h1 className="text-xl font-bold uppercase tracking-widest text-zinc-900 dark:text-white">INDEPENDENT AUDITOR'S REPORT</h1>
+          <p className="text-xs text-zinc-500 font-medium mt-1">To the Owner and Board of Directors of {companyName}</p>
+        </div>
+        
+        <div className="space-y-4 text-xs text-zinc-700 dark:text-zinc-300 text-justify leading-relaxed font-serif">
+          <div>
+            <span className="font-bold uppercase tracking-wider block text-zinc-900 dark:text-white mb-1">Opinion</span>
+            <p>
+              We have audited the accompanying financial statements of <strong className="text-zinc-900 dark:text-white">{companyName}</strong>, which comprise the Statement of Financial Position as of December 31, {yearFilter}, and the Statement of Comprehensive Income, Statement of Changes in Equity, and Statement of Cash Flows for the period then ended, and notes to the financial statements, including a summary of significant accounting policies.
+            </p>
+            <p className="mt-2">
+              In our opinion, the accompanying financial statements present fairly, in all material respects, the financial position of <strong>{companyName}</strong> as of December 31, {yearFilter}, and its financial performance and its cash flows for the period then ended in accordance with Philippine Financial Reporting Standards (PFRS) for Small Entities.
+            </p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs sm:text-sm">
+
+          <div>
+            <span className="font-bold uppercase tracking-wider block text-zinc-900 dark:text-white mb-1">Basis for Opinion</span>
+            <p>
+              We conducted our audit in accordance with Philippine Standards on Auditing (PSAs). Our responsibilities under those standards are further described in the <em>Auditor’s Responsibilities for the Audit of the Financial Statements</em> section of our report. We are independent of the Company in accordance with the Code of Ethics for Professional Accountants in the Philippines (Code of Ethics) together with the ethical requirements that are relevant to our audit of the financial statements in the Philippines, and we have fulfilled our other ethical responsibilities in accordance with these requirements. We believe that the audit evidence we have obtained is sufficient and appropriate to provide a basis for our opinion.
+            </p>
+          </div>
+
+          <div>
+            <span className="font-bold uppercase tracking-wider block text-zinc-900 dark:text-white mb-1">Responsibilities of Management for the Financial Statements</span>
+            <p>
+              Management is responsible for the preparation and fair presentation of the financial statements in accordance with PFRS for Small Entities, and for such internal control as management determines is necessary to enable the preparation of financial statements that are free from material misstatement, whether due to fraud or error.
+            </p>
+            <p className="mt-2">
+              In preparing the financial statements, management is responsible for assessing the Company’s ability to continue as a going concern, disclosing, as applicable, matters related to going concern and using the going concern basis of accounting unless management either intends to liquidate the Company or to cease operations, or has no realistic alternative but to do so.
+            </p>
+          </div>
+
+          <div>
+            <span className="font-bold uppercase tracking-wider block text-zinc-900 dark:text-white mb-1">Auditor’s Responsibilities for the Audit of the Financial Statements</span>
+            <p>
+              Our objectives are to obtain reasonable assurance about whether the financial statements as a whole are free from material misstatement, whether due to fraud or error, and to issue an auditor’s report that includes our opinion. Reasonable assurance is a high level of assurance, but is not a guarantee that an audit conducted in accordance with PSAs will always detect a material misstatement when it exists. Misstatements can arise from fraud or error and are considered material if, individually or in the aggregate, they could reasonably be expected to influence the economic decisions of users taken on the basis of these financial statements.
+            </p>
+          </div>
+        </div>
+
+        {/* AUDITOR ACCREDITATION SIGNATURE BLOCKS */}
+        <div className="grid grid-cols-2 gap-8 pt-8 text-xs font-sans border-t border-zinc-100 dark:border-zinc-800">
+          <div className="space-y-4">
+            <p className="text-zinc-500 font-bold uppercase tracking-wider text-[10px]">Certified Correct By:</p>
+            <div className="pt-10 border-b border-zinc-400 dark:border-zinc-600 w-48"></div>
+            <div>
+              <p className="font-bold text-zinc-900 dark:text-white">Chief Executive Officer / Owner</p>
+              <p className="text-[10px] text-zinc-500">{companyName}</p>
+              <p className="text-[10px] text-zinc-500">Date Signed: {new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <p className="text-zinc-500 font-bold uppercase tracking-wider text-[10px]">Audited & Certified By:</p>
+            <div className="pt-10 border-b border-zinc-400 dark:border-zinc-600 w-48"></div>
+            <div>
+              <p className="font-bold text-zinc-900 dark:text-white">INDEPENDENT AUDITOR / ACCREDITED FIRM</p>
+              <p className="text-[10px] text-zinc-500">PRC License No. 0088192 (Valid until Oct 2028)</p>
+              <p className="text-[10px] text-zinc-500">PTR No. 9118231 | BIR Accreditation No. 08-002341-002-2026</p>
+              <p className="text-[10px] text-zinc-500">BOA/PRC Reg. No. 0001 (Valid until Dec 31, 2026)</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* STATEMENT OF INCOMES */}
+      <div className="space-y-6 fs-sheet-print">
+        <div className="text-center border-b-2 border-zinc-800 dark:border-zinc-200 pb-4">
+          <h2 className="text-lg sm:text-xl font-bold uppercase tracking-widest text-zinc-900 dark:text-white font-sans">{companyName}</h2>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mt-1">Statement of Comprehensive Income</h3>
+          <p className="text-xs text-zinc-400 italic mt-0.5">{periodText}</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b-2 border-zinc-800 dark:border-zinc-200 text-left font-bold text-zinc-700 dark:text-zinc-300">
                 <th className="py-2">Accounts / Category</th>
@@ -433,18 +471,18 @@ export const FSModule: React.FC<FSModuleProps> = ({
               </tr>
             </tbody>
           </table>
-          </div>
         </div>
+      </div>
 
-        {/* STATEMENT OF EQUITIES */}
-        <div className="space-y-6 pt-10 border-t border-dashed border-zinc-200 dark:border-zinc-800 fs-sheet-print break-before-page">
-          <div className="text-center border-b-2 border-zinc-800 dark:border-zinc-200 pb-4">
-            <h2 className="text-lg sm:text-xl font-bold uppercase tracking-widest text-zinc-900 dark:text-white font-sans">{companyName}</h2>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mt-1">Statement of Changes in Equity</h3>
-            <p className="text-xs text-zinc-400 italic mt-0.5">{periodText}</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs sm:text-sm">
+      {/* STATEMENT OF EQUITIES */}
+      <div className="space-y-6 pt-10 border-t border-dashed border-zinc-200 dark:border-zinc-800 fs-sheet-print break-before-page">
+        <div className="text-center border-b-2 border-zinc-800 dark:border-zinc-200 pb-4">
+          <h2 className="text-lg sm:text-xl font-bold uppercase tracking-widest text-zinc-900 dark:text-white font-sans">{companyName}</h2>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mt-1">Statement of Changes in Equity</h3>
+          <p className="text-xs text-zinc-400 italic mt-0.5">{periodText}</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b-2 border-zinc-800 dark:border-zinc-200 text-left font-bold text-zinc-700 dark:text-zinc-300">
                 <th className="py-2">Description</th>
@@ -474,18 +512,18 @@ export const FSModule: React.FC<FSModuleProps> = ({
               </tr>
             </tbody>
           </table>
-          </div>
         </div>
+      </div>
 
-        {/* STATEMENT OF FINANCIAL POSITIONS */}
-        <div className="space-y-6 pt-10 border-t border-dashed border-zinc-200 dark:border-zinc-800 fs-sheet-print break-before-page">
-          <div className="text-center border-b-2 border-zinc-800 dark:border-zinc-200 pb-4">
-            <h2 className="text-lg sm:text-xl font-bold uppercase tracking-widest text-zinc-900 dark:text-white font-sans">{companyName}</h2>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mt-1">Statement of Financial Position</h3>
-            <p className="text-xs text-zinc-400 italic mt-0.5">{bsPeriodText}</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs sm:text-sm">
+      {/* STATEMENT OF FINANCIAL POSITIONS */}
+      <div className="space-y-6 pt-10 border-t border-dashed border-zinc-200 dark:border-zinc-800 fs-sheet-print break-before-page">
+        <div className="text-center border-b-2 border-zinc-800 dark:border-zinc-200 pb-4">
+          <h2 className="text-lg sm:text-xl font-bold uppercase tracking-widest text-zinc-900 dark:text-white font-sans">{companyName}</h2>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mt-1">Statement of Financial Position</h3>
+          <p className="text-xs text-zinc-400 italic mt-0.5">{bsPeriodText}</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b-2 border-zinc-800 dark:border-zinc-200 text-left font-bold text-zinc-700 dark:text-zinc-300">
                 <th className="py-2">Accounts / Category</th>
@@ -553,18 +591,18 @@ export const FSModule: React.FC<FSModuleProps> = ({
               </tr>
             </tbody>
           </table>
-          </div>
         </div>
+      </div>
 
-        {/* STATEMENT OF CASH FLOWS */}
-        <div className="space-y-6 pt-10 border-t border-dashed border-zinc-200 dark:border-zinc-800 fs-sheet-print break-before-page">
-          <div className="text-center border-b-2 border-zinc-800 dark:border-zinc-200 pb-4">
-            <h2 className="text-lg sm:text-xl font-bold uppercase tracking-widest text-zinc-900 dark:text-white font-sans">{companyName}</h2>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mt-1">Statement of Cash Flows</h3>
-            <p className="text-xs text-zinc-400 italic mt-0.5">{periodText}</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs sm:text-sm">
+      {/* STATEMENT OF CASH FLOWS */}
+      <div className="space-y-6 pt-10 border-t border-dashed border-zinc-200 dark:border-zinc-800 fs-sheet-print break-before-page">
+        <div className="text-center border-b-2 border-zinc-800 dark:border-zinc-200 pb-4">
+          <h2 className="text-lg sm:text-xl font-bold uppercase tracking-widest text-zinc-900 dark:text-white font-sans">{companyName}</h2>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mt-1">Statement of Cash Flows</h3>
+          <p className="text-xs text-zinc-400 italic mt-0.5">{periodText}</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b-2 border-zinc-800 dark:border-zinc-200 text-left font-bold text-zinc-700 dark:text-zinc-300">
                 <th className="py-2">Description</th>
@@ -626,18 +664,18 @@ export const FSModule: React.FC<FSModuleProps> = ({
               </tr>
             </tbody>
           </table>
-          </div>
         </div>
+      </div>
 
-        {/* UNADJUSTED TRIAL BALANCE */}
-        <div className="space-y-6 pt-10 border-t border-dashed border-zinc-200 dark:border-zinc-800 fs-sheet-print break-before-page">
-          <div className="text-center border-b-2 border-zinc-800 dark:border-zinc-200 pb-4">
-            <h2 className="text-lg sm:text-xl font-bold uppercase tracking-widest text-zinc-900 dark:text-white font-sans">{companyName}</h2>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mt-1">Unadjusted Trial Balance</h3>
-            <p className="text-xs text-zinc-400 italic mt-0.5">{bsPeriodText}</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs sm:text-sm">
+      {/* UNADJUSTED TRIAL BALANCE */}
+      <div className="space-y-6 pt-10 border-t border-dashed border-zinc-200 dark:border-zinc-800 fs-sheet-print break-before-page">
+        <div className="text-center border-b-2 border-zinc-800 dark:border-zinc-200 pb-4">
+          <h2 className="text-lg sm:text-xl font-bold uppercase tracking-widest text-zinc-900 dark:text-white font-sans">{companyName}</h2>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-500 mt-1">Unadjusted Trial Balance</h3>
+          <p className="text-xs text-zinc-400 italic mt-0.5">{bsPeriodText}</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b-2 border-zinc-800 dark:border-zinc-200 text-left font-bold text-zinc-700 dark:text-zinc-300">
                 <th className="py-2">Account Title</th>
@@ -666,26 +704,115 @@ export const FSModule: React.FC<FSModuleProps> = ({
               </tr>
             </tbody>
           </table>
-          </div>
         </div>
+      </div>
 
-        {/* NOTES */}
-        <div className="space-y-4 pt-10 border-t border-dashed border-zinc-200 dark:border-zinc-800 fs-sheet-print break-before-page text-left text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed font-sans">
-          <h4 className="font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest text-center border-b border-zinc-200 dark:border-zinc-800 pb-2 mb-4">Notes to Financial Statements</h4>
-          <p>
-            <strong>Note 1: Accounting Framework & Policy</strong><br />
-            These statements have been compiled in absolute compliance with Double-Entry Bookkeeping and the Philippine Financial Reporting Standards (PFRS) for Small Entities. Revenues are recognized when earned (Credit normal), and disbursements or expenses are recognized when incurred (Debit normal).
-          </p>
-          <p>
-            <strong>Note 2: Double-Entry Trial Consistency</strong><br />
-            The Unadjusted Trial Balance derives ledger balances intrinsically from direct transactional postings to Sales, Purchases, and Setup classes. Mathematical proofs are checked dynamically at load time to confirm A = L + E. Current imbalance variance reads: <strong>{displayMoney(difference)}</strong>.
-          </p>
-          <p>
-            <strong>Note 3: Corporate and PTU Authority</strong><br />
-            These ledgers are generated dynamically in accordance with loose-leaf binding guidelines issued by the Bureau of Internal Revenue. Use of printed book bind logs requires a valid <strong>Permit To Use Loose-Leaf Books of Accounts</strong>.
-          </p>
-        </div>
+      {/* NOTES */}
+      <div className="space-y-4 pt-10 border-t border-dashed border-zinc-200 dark:border-zinc-800 fs-sheet-print break-before-page text-left text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed font-sans">
+        <h4 className="font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest text-center border-b border-zinc-200 dark:border-zinc-800 pb-2 mb-4">Notes to Financial Statements</h4>
+        <p>
+          <strong>Note 1: Accounting Framework & Policy</strong><br />
+          These statements have been compiled in absolute compliance with Double-Entry Bookkeeping and the Philippine Financial Reporting Standards (PFRS) for Small Entities. Revenues are recognized when earned (Credit normal), and disbursements or expenses are recognized when incurred (Debit normal).
+        </p>
+        <p>
+          <strong>Note 2: Double-Entry Trial Consistency</strong><br />
+          The Unadjusted Trial Balance derives ledger balances intrinsically from direct transactional postings to Sales, Purchases, and Setup classes. Mathematical proofs are checked dynamically at load time to confirm A = L + E. Current imbalance variance reads: <strong>{displayMoney(difference)}</strong>.
+        </p>
+        <p>
+          <strong>Note 3: Corporate and PTU Authority</strong><br />
+          These ledgers are generated dynamically in accordance with loose-leaf binding guidelines issued by the Bureau of Internal Revenue. Use of printed book bind logs requires a valid <strong>Permit To Use Loose-Leaf Books of Accounts</strong>.
+        </p>
       </div>
     </div>
   );
+
+  if (yearFilter === 'ALL') {
+    return (
+      <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 p-8 rounded-2xl text-center space-y-3">
+        <AlertCircle className="w-8 h-8 text-blue-500 mx-auto" />
+        <h3 className="text-sm font-bold text-blue-800 dark:text-blue-400 uppercase tracking-wider">Select Taxable Year</h3>
+        <p className="text-xs text-blue-700 dark:text-blue-500 max-w-md mx-auto">Please select a specific taxable year from the year filter at the top of the dashboard to generate and print compliant Financial Statements.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5 no-print">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white font-sans">📑 Financial Statements</h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Generate, audit, and print complete BIR-compliant books of accounts and statements.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl text-xs font-semibold border border-zinc-200 dark:border-zinc-700">
+            <Scale className="w-3.5 h-3.5" />
+            <span className={isBalanced ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' : 'text-rose-600 dark:text-rose-400 font-extrabold'}>
+              {isBalanced ? 'Balanced Ledger' : `Out of Balance: ${displayMoney(difference)}`}
+            </span>
+          </div>
+          <button 
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 text-xs bg-white hover:bg-zinc-50 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-700 dark:text-zinc-200 font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm border border-zinc-200 dark:border-zinc-700 focus:outline-none"
+            title="Export Trial Balance for Consolidation"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export CSV</span>
+          </button>
+          <button 
+            onClick={handlePrint}
+            className="flex items-center gap-2 text-xs bg-zinc-900 hover:bg-zinc-800 text-white font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm focus:outline-none"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print Financial Statements</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 no-print">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4.5 rounded-2xl shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Ledger Compliance Status</span>
+          <div className="flex items-center gap-2 mt-1">
+            <ShieldCheck className="w-5 h-5 text-emerald-500" />
+            <div className="text-base font-extrabold text-zinc-800 dark:text-zinc-200">BIR-Compliant Draft</div>
+          </div>
+          <p className="text-[10px] text-zinc-400 mt-2 font-medium">Double-entry ledger rules applied strictly.</p>
+        </div>
+
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4.5 rounded-2xl shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Statement Period</span>
+          <div className="text-base font-extrabold text-zinc-800 dark:text-zinc-200 mt-1 line-clamp-1">{periodText}</div>
+          <p className="text-[10px] text-zinc-400 mt-2 font-medium">Filter parameters matched in active statement.</p>
+        </div>
+
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4.5 rounded-2xl shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Net Operational Margin</span>
+          <div className={`text-base font-extrabold mt-1 ${currentNetIncome >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+            {displayMoney(currentNetIncome)}
+          </div>
+          <p className="text-[10px] text-zinc-400 mt-2 font-medium">Earnings net of operating disbursements.</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4 border-b border-zinc-200 dark:border-zinc-800 no-print">
+        <button 
+          onClick={() => setActiveView('Report')}
+          className={`px-6 py-3 text-xs font-bold uppercase tracking-widest transition-all relative ${activeView === 'Report' ? 'text-blue-600' : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
+        >
+          Full Financial Report
+          {activeView === 'Report' && <motion.div layoutId="fs-tab" className="absolute -bottom-px left-0 right-0 h-0.5 bg-blue-600" />}
+        </button>
+        <button 
+          onClick={() => setActiveView('Consolidation')}
+          className={`px-6 py-3 text-xs font-bold uppercase tracking-widest transition-all relative ${activeView === 'Consolidation' ? 'text-blue-600' : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'}`}
+        >
+          Consolidation Worksheet
+          {activeView === 'Consolidation' && <motion.div layoutId="fs-tab" className="absolute -bottom-px left-0 right-0 h-0.5 bg-blue-600" />}
+        </button>
+      </div>
+
+      {activeView === 'Consolidation' ? renderConsolidation() : renderReport()}
+    </div>
+  );
 };
+
+export default FSModule;

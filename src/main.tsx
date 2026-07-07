@@ -6,13 +6,12 @@ import './index.css';
 import { initializeLocalStorageOverride } from './lib/db';
 
 // OVERRIDE LOCALSTORAGE FOR TENANT ISOLATION AND FIRESTORE SYNC
-initializeLocalStorageOverride();
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+// OVERRIDE LOCALSTORAGE FOR TENANT ISOLATION AND FIRESTORE SYNC
+initializeLocalStorageOverride().then(() => {
+  createRoot(document.getElementById('root')!).render(
     <App />
-  </StrictMode>,
-);
+  );
+});
 
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {

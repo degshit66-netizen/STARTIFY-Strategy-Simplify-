@@ -1,6 +1,7 @@
+import { PrintHeader } from './PrintHeader';
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { Plus, Bell, Calendar, Trash2, Edit3, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Plus, Bell, Calendar, Trash2, Edit3, CheckCircle, Clock, AlertTriangle , Printer} from 'lucide-react';
 import { SchedulerTask, CompanyConfig, TaxpayerType } from '../types';
 import { r2, cleanDate } from '../utils/helpers';
 
@@ -215,9 +216,9 @@ export const SchedulerModule: React.FC<SchedulerModuleProps> = ({
     show: { opacity: 1, transition: { staggerChildren: 0.05 } }
   };
 
-  const itemVariants = {
+  const itemVariants: any = {
     hidden: { opacity: 0, y: 12 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100 } }
+    show: { opacity: 1, y: 0, transition: { type: 'spring' as any as any as any, stiffness: 100 } }
   };
 
   const currentCompanyProfile = companyConfig?.registeredVat === false ? TaxpayerType.NON_VAT_REGISTERED : TaxpayerType.VAT_REGISTERED;
@@ -230,15 +231,24 @@ export const SchedulerModule: React.FC<SchedulerModuleProps> = ({
       animate="show"
       className="space-y-6"
     >
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5">
+      <PrintHeader title="Business Scheduler" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5 no-print">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white font-sans">📅 Business Scheduler</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">Manage tax filing deadlines, monthly audits, corporate reports, and setup schedules.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
           <button 
+            onClick={() => window.print()}
+            className="flex items-center gap-2 text-xs bg-zinc-950 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 dark:text-zinc-900 text-white font-bold px-4 py-2.5 rounded-xl transition-colors border border-zinc-800 shadow-sm focus:outline-none no-print"
+            title="Print Schedule"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print Report</span>
+          </button>
+          <button 
             onClick={triggerPushPermission}
-            className="flex items-center gap-2 text-xs bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-bold px-4 py-2.5 rounded-xl transition-colors border border-zinc-200 dark:border-zinc-700 shadow-sm"
+            className="flex items-center gap-2 text-xs bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-bold px-4 py-2.5 rounded-xl transition-colors border border-zinc-200 dark:border-zinc-700 shadow-sm no-print"
           >
             <Bell className="w-4 h-4 text-blue-500" />
             <span>Enable Push Alarms</span>
@@ -469,3 +479,5 @@ export const SchedulerModule: React.FC<SchedulerModuleProps> = ({
     </motion.div>
   );
 };
+
+export default SchedulerModule;

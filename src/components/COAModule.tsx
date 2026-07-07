@@ -1,6 +1,7 @@
+import { PrintHeader } from './PrintHeader';
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import { Plus, Trash2, HelpCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Plus, Trash2, HelpCircle , Printer} from 'lucide-react';
 import { 
   BarChart, 
   Bar, 
@@ -99,7 +100,7 @@ export const COAModule: React.FC<COAModuleProps> = ({
     const net = r2(parseNum(r.net) || (gross / 1.12));
     const vat = r2(parseNum(r.vat));
     const ewt = r2(parseNum(r.ewt));
-    const cash = r2(parseNum(r.cash !== undefined && r.cash !== null && r.cash !== '' ? r.cash : (gross - ewt)));
+    const cash = r2(parseNum(r.cash !== undefined && r.cash !== null && String(r.cash) !== '' ? r.cash : (gross - ewt)));
     const isCashEntry = String(r.postingNature || 'Cash Transaction').trim().toLowerCase() === 'cash transaction';
 
     if (r.type === 'Sales') {
@@ -129,8 +130,8 @@ export const COAModule: React.FC<COAModuleProps> = ({
       const expAcc = getCoaDetails(r.category || r.particulars, r.type).name;
       const expCode = getCodeByName(expAcc);
       let apTerm = 'Accounts Payable';
-      if (['Accounts Payable - Trade', 'Accounts Payable - Non-Trade', 'Accrued Expenses'].includes(r.terms || '')) {
-         apTerm = r.terms || 'Accounts Payable';
+      if (r.terms) {
+         apTerm = r.terms;
       }
       const cashCode = getCodeByName(isCashEntry ? 'Cash in Bank / on Hand' : apTerm);
       const vatCode = getCodeByName('Input VAT');
@@ -202,7 +203,8 @@ export const COAModule: React.FC<COAModuleProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5">
+      <PrintHeader title="Chart of Accounts" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5 no-print">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white font-sans">🗂 Chart of Accounts</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">Configure account codes, normal ledger entry sides, and analyze trial run balances.</p>
@@ -210,9 +212,19 @@ export const COAModule: React.FC<COAModuleProps> = ({
         <div className="flex items-center gap-2 self-start sm:self-auto bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-xl text-xs font-bold text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
           <span>{coaList.length} accounts configured</span>
         </div>
+        <div className="no-print">
+          <button 
+            onClick={() => window.print()}
+            className="flex items-center gap-2 text-xs bg-zinc-950 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 dark:text-zinc-900 text-white font-bold px-4 py-2.5 rounded-xl transition-colors border border-zinc-800 shadow-sm focus:outline-none"
+            title="Print Chart of Accounts"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print Report</span>
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 no-print">
         {['Asset', 'Liability', 'Equity', 'Income', 'Expense'].map(type => {
           const val = classTotals[type as keyof typeof classTotals] || 0;
           return (
@@ -227,7 +239,7 @@ export const COAModule: React.FC<COAModuleProps> = ({
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 no-print">
         <div className="lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">Add Custom Account</h3>
@@ -341,7 +353,7 @@ export const COAModule: React.FC<COAModuleProps> = ({
         </div>
       </div>
 
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden print:border-0 print:shadow-none print:w-full">
         <div className="border-b border-zinc-100 dark:border-zinc-800 p-5">
           <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">Account Registry and Activity</h3>
           <p className="text-xs text-zinc-500 mt-1">Showing all standard and custom chart accounts with active balances.</p>
@@ -413,3 +425,5 @@ export const COAModule: React.FC<COAModuleProps> = ({
     </div>
   );
 };
+
+export default COAModule;

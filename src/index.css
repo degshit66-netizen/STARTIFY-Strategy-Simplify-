@@ -37,20 +37,18 @@ html, body, #root {
 }
 
 @media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
   /* Hide UI and interaction elements */
-  .no-print,
-  aside,
-  header,
-  button,
-  select,
-  input,
-  .toast,
-  [role="alert"] {
+  body:not(.is-printing-books) .no-print, body:not(.is-printing-books) aside, body:not(.is-printing-books) nav, body:not(.is-printing-books) header, body:not(.is-printing-books) button, body:not(.is-printing-books) select, body:not(.is-printing-books) input, body:not(.is-printing-books) .toast, body:not(.is-printing-books) [role="alert"] {
     display: none !important;
   }
 
   /* Reset layout constraints to flow naturally on paper */
-  html, body, #root, main, div.flex-1, div.overflow-hidden, div.flex, .overflow-y-auto {
+  body:not(.is-printing-books), body:not(.is-printing-books) #root, body:not(.is-printing-books) main, body:not(.is-printing-books) div.flex-1, body:not(.is-printing-books) div.overflow-hidden, body:not(.is-printing-books) div.flex, body:not(.is-printing-books) .overflow-y-auto {
     height: auto !important;
     min-height: auto !important;
     max-height: none !important;
@@ -68,20 +66,18 @@ html, body, #root {
   }
 
   /* Keep table text dark and backgrounds clean */
-  p, span, h1, h2, h3, h4, h5, h6, td, th {
+  body:not(.is-printing-books) p, body:not(.is-printing-books) span, body:not(.is-printing-books) h1, body:not(.is-printing-books) h2, body:not(.is-printing-books) h3, body:not(.is-printing-books) h4, body:not(.is-printing-books) h5, body:not(.is-printing-books) h6, body:not(.is-printing-books) td, body:not(.is-printing-books) th {
     color: #000000 !important;
     text-shadow: none !important;
   }
 
-  table {
-    border-collapse: collapse !important;
+  body:not(.is-printing-books) table { border-collapse: collapse !important;
     width: 100% !important;
     margin-top: 15px !important;
     margin-bottom: 15px !important;
   }
 
-  th, td {
-    padding-top: 6px !important;
+  body:not(.is-printing-books) th, body:not(.is-printing-books) td { padding-top: 6px !important;
     padding-bottom: 6px !important;
     border-bottom: 1px solid #111 !important;
     background-color: white !important;
@@ -89,7 +85,7 @@ html, body, #root {
   }
 
   /* Maintain layout visual spacing */
-  .bg-white, .dark\:bg-zinc-900, .bg-zinc-50, .dark\:bg-zinc-950\/60 {
+  body:not(.is-printing-books) .bg-white, body:not(.is-printing-books) .dark\:bg-zinc-900, body:not(.is-printing-books) .bg-zinc-50, body:not(.is-printing-books) .dark\:bg-zinc-950\/60 {
     background-color: #ffffff !important;
     background-image: none !important;
     border-color: #e4e4e7 !important;
@@ -97,8 +93,7 @@ html, body, #root {
   }
 
   /* Optimize layout for full sheet print */
-  main {
-    padding: 0 !important;
+  body:not(.is-printing-books) main { padding: 0 !important;
     margin: 0 !important;
     max-width: 100% !important;
     width: 100% !important;
@@ -147,12 +142,10 @@ html, body, #root {
   }
 
   /* Keep table text crisp and clear */
-  table {
-    border-collapse: collapse !important;
+  body:not(.is-printing-books) table { border-collapse: collapse !important;
   }
 
-  th, td {
-    padding-top: 6px !important;
+  body:not(.is-printing-books) th, body:not(.is-printing-books) td { padding-top: 6px !important;
     padding-bottom: 6px !important;
     border-bottom: 1px solid #111 !important;
   }

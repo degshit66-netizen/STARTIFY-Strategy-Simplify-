@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BarChart3, 
   BookOpen, 
@@ -49,39 +49,39 @@ import { LedgerEntry, CompanyConfig, User, Tenant, SchedulerTask, SystemAnnounce
 import { r2, parseNum, cleanDate } from './utils/helpers';
 import { getCompleteChartOfAccounts } from './data/chartOfAccounts';
 
-// Subcomponents
-import { Dashboard } from './components/Dashboard';
-import { AICopilot } from './components/AICopilot';
-import { LedgerTable } from './components/LedgerTable';
-import { SalesModule } from './components/SalesModule';
-import { PurchaseModule } from './components/PurchaseModule';
-import { ReconciliationModule } from './components/ReconciliationModule';
-import { FixedAssetsModule } from './components/FixedAssetsModule';
-import { InventoryModule } from './components/InventoryModule';
-import { ContactsModule } from './components/ContactsModule';
-import { SchedulerModule } from './components/SchedulerModule';
-import { QuotationBuilder } from './components/QuotationBuilder';
-import { ReportsModule } from './components/ReportsModule';
-import { FSModule } from './components/FSModule';
-import { BooksModule } from './components/BooksModule';
-import { COAModule } from './components/COAModule';
-import { EcommerceModule } from './components/EcommerceModule';
-import { PayrollModule } from './components/PayrollModule';
-import { HRModule } from './components/HRModule';
-import { FileModule } from './components/FileModule';
-import { DisbursementVoucherModal } from './components/DisbursementVoucherModal';
-import { AuditTrailModule } from './components/AuditTrailModule';
-import { Auth } from './components/Auth';
-import { SuperAdminDashboard } from './components/SuperAdminDashboard';
-import { FeatureTour } from './components/FeatureTour';
-import { SubscriptionPrompt } from './components/SubscriptionPrompt';
-import { OnboardingWelcome } from './components/OnboardingWelcome';
-import { useTrialMonitor } from './hooks/useTrialMonitor';
-import { loadTenantsFromFirebase, loadUsersFromFirebase, syncTenantToFirebase, syncUserToFirebase, loadStorageFromFirebase, loadConfigFromFirebase } from './lib/db';
+// Lazy loaded subcomponents for code splitting
+const Dashboard = React.lazy(() => import('./components/Dashboard'));
+const AICopilot = React.lazy(() => import('./components/AICopilot'));
+const LedgerTable = React.lazy(() => import('./components/LedgerTable'));
+const SalesModule = React.lazy(() => import('./components/SalesModule'));
+const PurchaseModule = React.lazy(() => import('./components/PurchaseModule'));
+const ReconciliationModule = React.lazy(() => import('./components/ReconciliationModule'));
+const FixedAssetsModule = React.lazy(() => import('./components/FixedAssetsModule'));
+const InventoryModule = React.lazy(() => import('./components/InventoryModule'));
+const ContactsModule = React.lazy(() => import('./components/ContactsModule'));
+const SchedulerModule = React.lazy(() => import('./components/SchedulerModule'));
+const QuotationBuilder = React.lazy(() => import('./components/QuotationBuilder'));
+const ReportsModule = React.lazy(() => import('./components/ReportsModule'));
+const FSModule = React.lazy(() => import('./components/FSModule'));
+const BooksModule = React.lazy(() => import('./components/BooksModule'));
+const COAModule = React.lazy(() => import('./components/COAModule'));
+const EcommerceModule = React.lazy(() => import('./components/EcommerceModule'));
+const PayrollModule = React.lazy(() => import('./components/PayrollModule'));
+const HRModule = React.lazy(() => import('./components/HRModule'));
+const FileModule = React.lazy(() => import('./components/FileModule'));
+const DisbursementVoucherModal = React.lazy(() => import('./components/DisbursementVoucherModal'));
+const AuditTrailModule = React.lazy(() => import('./components/AuditTrailModule'));
+const FeatureTour = React.lazy(() => import('./components/FeatureTour'));
+const SubscriptionPrompt = React.lazy(() => import('./components/SubscriptionPrompt'));
+const OnboardingWelcome = React.lazy(() => import('./components/OnboardingWelcome'));
 
-// Modals
+// Modals and Core
 import { EntryModal } from './components/EntryModal';
 import { SettingsModal } from './components/SettingsModal';
+import { Auth } from './components/Auth';
+import { useTrialMonitor } from './hooks/useTrialMonitor';
+import { SuperAdminDashboard } from './components/SuperAdminDashboard';
+import { loadTenantsFromFirebase, loadUsersFromFirebase, syncTenantToFirebase, syncUserToFirebase, loadStorageFromFirebase, loadConfigFromFirebase } from './lib/db';
 
 export type ActiveTab = 
   | 'Dashboard'
@@ -166,14 +166,14 @@ export default function App() {
       if (entry.date) {
         try {
           const yr = new Date(entry.date).getFullYear().toString();
-          if (!isNaN(Number(yr)) && Number(yr) > 1900) {
+          if (!isNaN(parseNum(yr)) && parseNum(yr) > 1900) {
             yearsSet.add(yr);
           }
         } catch (e) {}
       }
     });
 
-    return Array.from(yearsSet).sort((a, b) => Number(b) - Number(a));
+    return Array.from(yearsSet).sort((a, b) => parseNum(b) - parseNum(a));
   }, [ledger]);
 
   const notifications = useMemo(() => {
@@ -703,68 +703,69 @@ export default function App() {
     }
   ].filter(Boolean) as { title: string, items: { id: string, label: string, icon: any }[] }[];
 
-  if (isInitializing) {
-    return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-zinc-950 text-white">
-        <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-zinc-400 font-medium animate-pulse tracking-wide uppercase text-sm">Loading STRATIFY Workspace...</p>
-      </div>
-    );
-  }
+  const renderAppContent = () => {
+    if (isInitializing) {
+      return (
+        <div className="h-screen w-screen flex flex-col items-center justify-center bg-zinc-950 text-white">
+          <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-zinc-400 font-medium animate-pulse tracking-wide uppercase text-sm">Loading STRATIFY Workspace...</p>
+        </div>
+      );
+    }
 
-  if (!currentUser) {
-    return (
-      <Auth 
-        onLogin={handleLogin}
-        tenants={tenants}
-        setTenants={setTenants}
-        users={users}
-        setUsers={setUsers}
-      />
-    );
-  }
-
-  if (currentUser.role === 'superadmin') {
-    return (
-      <SuperAdminDashboard 
-        tenants={tenants}
-        setTenants={setTenants}
-        users={users}
-        onLogout={handleLogout}
-      />
-    );
-  }
-
-  if (isTrialExpired) {
-    return (
-      <SubscriptionPrompt 
-        tenant={currentTenant}
-        user={currentUser}
-        onLogout={handleLogout}
-      />
-    );
-  }
-  if (showTenantOnboarding && currentTenant) {
-    return (
-      <OnboardingWelcome 
-        tenant={currentTenant} 
-        onComplete={() => {
-          localStorage.setItem(`stratify_onboarded_tenant_${currentTenant.id}`, 'true');
-          setShowTenantOnboarding(false);
-        }} 
-      />
-    );
-  }
-
-  return (
-    <div className="h-screen h-[100dvh] overflow-hidden bg-white dark:bg-zinc-950 flex flex-col font-sans transition-colors duration-300 overscroll-none">
-      
-      {showOnboarding && (
-        <FeatureTour 
-          onComplete={() => setShowOnboarding(false)} 
-          onTabChange={(tab) => setActiveTab(tab)}
+    if (!currentUser) {
+      return (
+        <Auth 
+          onLogin={handleLogin}
+          tenants={tenants}
+          setTenants={setTenants}
+          users={users}
+          setUsers={setUsers}
         />
-      )}
+      );
+    }
+
+    if (currentUser.role === 'superadmin') {
+      return (
+        <SuperAdminDashboard 
+          tenants={tenants}
+          setTenants={setTenants}
+          users={users}
+          onLogout={handleLogout}
+        />
+      );
+    }
+
+    if (isTrialExpired) {
+      return (
+        <SubscriptionPrompt 
+          tenant={currentTenant}
+          user={currentUser}
+          onLogout={handleLogout}
+        />
+      );
+    }
+
+    if (showTenantOnboarding && currentTenant) {
+      return (
+        <OnboardingWelcome 
+          tenant={currentTenant} 
+          onComplete={() => {
+            localStorage.setItem(`stratify_onboarded_tenant_${currentTenant.id}`, 'true');
+            setShowTenantOnboarding(false);
+          }} 
+        />
+      );
+    }
+
+    return (
+      <div className="h-screen h-[100dvh] overflow-hidden bg-white dark:bg-zinc-950 flex flex-col font-sans transition-colors duration-300 overscroll-none">
+        {showOnboarding && (
+          <FeatureTour 
+            onComplete={() => setShowOnboarding(false)} 
+            onTabChange={(tab) => setActiveTab(tab)}
+          />
+        )}
       
       {/* HEADER SECTION (NO-PRINT) */}
       <header className="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 border-b border-blue-900 text-white px-4 md:px-6 py-3 md:py-4 flex items-center justify-between no-print shadow-md shrink-0 z-40">
@@ -932,72 +933,25 @@ export default function App() {
         </div>
       </header>
 
-      {/* 4D HOLOGRAPHIC RUNNING MARQUEE BROADCAST SYSTEM */}
+      {/* SYSTEM BROADCAST SYSTEM */}
       {announcements.filter(a => a.active).length > 0 && (() => {
         const activeAnnouncements = announcements.filter(a => a.active);
-        const textSegments = activeAnnouncements.map(ann => {
-          const emoji = ann.type === 'warning' ? '⚠' : ann.type === 'success' ? '✦' : '⚡';
-          return `${emoji} [${ann.title.toUpperCase()}] : ${ann.message}`;
-        });
-        const combinedText = textSegments.join('     ❖     ') + '     ❖     ';
-        
         return (
-          <div className="w-full relative z-30 shrink-0 select-none dimensional-banner bg-zinc-950 text-white overflow-hidden py-3 px-6 border-b border-cyan-500/30 no-print">
-            {/* Holographic scanning line */}
-            <div className="absolute inset-x-0 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_8px_#22d3ee]" />
-            
-            {/* Cybernetic Grid Overlay for 4D feel */}
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(18,24,38,0.2)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none opacity-40" />
-            
-            <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-6 relative z-10">
-              {/* Dynamic Signal Source Badge */}
-              <div className="flex items-center gap-2.5 shrink-0 bg-zinc-900/95 border border-cyan-500/20 rounded-full py-1 px-3.5 shadow-[0_0_10px_rgba(34,211,238,0.1)]">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600"></span>
-                </span>
-                <Radio className="w-4 h-4 text-cyan-400 animate-pulse shrink-0" />
-                <span className="text-[10px] font-black font-mono tracking-[0.25em] text-cyan-400 uppercase">
-                  4D_LIVE_SIGNAL
-                </span>
+          <div className="w-full relative z-30 shrink-0 bg-blue-900/10 dark:bg-blue-900/20 text-blue-900 dark:text-blue-100 overflow-hidden py-2 px-4 border-b border-blue-200 dark:border-blue-800 no-print">
+            <div className="max-w-7xl mx-auto flex items-center gap-3">
+              <div className="flex items-center gap-2 shrink-0 px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/50">
+                <Radio className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 animate-pulse" />
+                <span className="text-[10px] font-bold tracking-wider uppercase">System Broadcast</span>
               </div>
-
-              {/* Endless Loop Running Marquee */}
-              <div className="flex-1 overflow-hidden relative py-0.5">
-                {/* Fade overlays on the sides for modern visual finish */}
-                <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-zinc-950 to-transparent z-10 pointer-events-none" />
-                <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-zinc-950 to-transparent z-10 pointer-events-none" />
-                
-                <div className="marquee-container">
-                  <div className="marquee-content flex items-center font-mono text-xs font-bold uppercase tracking-wider text-zinc-100">
-                    <div className="flex items-center shrink-0 chromatic-text">
-                      {Array(4).fill(combinedText).map((txt, i) => (
-                        <span key={i} className="mr-16 flex items-center gap-6">
-                          {txt}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex items-center shrink-0 chromatic-text">
-                      {Array(4).fill(combinedText).map((txt, i) => (
-                        <span key={i} className="mr-16 flex items-center gap-6">
-                          {txt}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+              <div className="flex-1 overflow-hidden">
+                <div className="flex items-center gap-6 text-xs font-medium">
+                  {activeAnnouncements.map((ann, i) => (
+                    <span key={i} className="flex items-center gap-2 whitespace-nowrap">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                      <strong>{ann.title}:</strong> {ann.message}
+                    </span>
+                  ))}
                 </div>
-              </div>
-
-              {/* Cyber telemetrics HUD */}
-              <div className="hidden lg:flex items-center gap-4 text-[9px] font-mono text-zinc-500 shrink-0">
-                <span className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  STABLE_CONN
-                </span>
-                <span className="border-l border-zinc-800 h-3" />
-                <span>ERR_RATE: 0.00%</span>
-                <span className="border-l border-zinc-800 h-3" />
-                <span className="text-zinc-400 select-all">PORT_3000</span>
               </div>
             </div>
           </div>
@@ -1042,7 +996,9 @@ export default function App() {
                       >
                         <div className="flex items-center">
                           <div className={`mr-3 transition-colors ${isActive ? 'text-yellow-400' : 'text-blue-300/70 group-hover:text-yellow-400/80'}`}>
-                            {React.cloneElement(item.icon, { className: 'w-4 h-4' })}
+                            <div className="shrink-0">
+                              {item.icon}
+                            </div>
                           </div>
                           <span>{item.label}</span>
                         </div>
@@ -1075,34 +1031,35 @@ export default function App() {
         <main className="flex-1 p-4 md:p-5 overflow-y-auto max-w-7xl mx-auto w-full overscroll-contain">
           
           {/* TAB WINDOW COMPONENT ROUTING */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.15 }}
-            >
-              {activeTab === 'Dashboard' && (
-                <Dashboard 
-                  ledger={ledger} 
+          <React.Suspense fallback={<div className="flex items-center justify-center h-64 text-zinc-500 font-mono text-xs animate-pulse">SYNCHRONIZING CORE DATA...</div>}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.15 }}
+              >
+                {activeTab === 'Dashboard' && (
+                  <Dashboard 
+                    yearFilter={yearFilter}
+                    monthFilter={monthFilter}
+                    quarterFilter={quarterFilter}
+                    ledger={ledger}
+                    companyName={companyConfig.companyName}
+                    companyTin={companyConfig.tin}
+                    onOpenAICopilot={() => setIsAICopilotOpen(true)}
+                  />
+                )}
+                {activeTab === 'Ledger' && (
+                <LedgerTable 
                   yearFilter={yearFilter}
                   monthFilter={monthFilter}
                   quarterFilter={quarterFilter}
-                  companyName={companyConfig.companyName}
-                  companyTin={companyConfig.tin}
-                  onOpenAICopilot={() => setIsAICopilotOpen(true)}
-                />
-              )}
-              {activeTab === 'Ledger' && (
-                <LedgerTable 
-                  ledger={ledger} 
+                  ledger={ledger}
                   onVoid={handleVoidEntry} 
                   onDelete={handleDeleteEntry}
                   onEdit={handleEditEntry}
-                  yearFilter={yearFilter}
-                  monthFilter={monthFilter}
-                  quarterFilter={quarterFilter}
                   setMonthFilter={setMonthFilter}
                   setQuarterFilter={setQuarterFilter}
                   lockedMonths={lockedMonths}
@@ -1114,10 +1071,10 @@ export default function App() {
               )}
               {activeTab === 'Sales' && (
                 <SalesModule 
-                  ledger={ledger}
                   yearFilter={yearFilter}
                   monthFilter={monthFilter}
                   quarterFilter={quarterFilter}
+                  ledger={ledger}
                   onOpenSalesModal={() => {
                     setEntryModalType('Sales');
                     setScanResult(null);
@@ -1127,10 +1084,10 @@ export default function App() {
               )}
               {activeTab === 'Purchases' && (
                 <PurchaseModule 
-                  ledger={ledger}
                   yearFilter={yearFilter}
                   monthFilter={monthFilter}
                   quarterFilter={quarterFilter}
+                  ledger={ledger}
                   onOpenExpenseModal={() => {
                     setEntryModalType('Expense');
                     setScanResult(null);
@@ -1142,15 +1099,18 @@ export default function App() {
               )}
               {activeTab === 'Reconciliation' && (
                 <ReconciliationModule 
-                  ledger={ledger}
                   yearFilter={yearFilter}
                   monthFilter={monthFilter}
                   quarterFilter={quarterFilter}
+                  ledger={ledger}
                 />
               )}
               {activeTab === 'FixedAssets' && (
                 <FixedAssetsModule 
                   ledger={ledger}
+                  
+                  
+                  
                   coa={coa}
                   showToast={showToast}
                 />
@@ -1186,34 +1146,37 @@ export default function App() {
               )}
               {activeTab === 'Reports' && (
                 <ReportsModule 
-                  ledger={ledger}
                   yearFilter={yearFilter}
                   monthFilter={monthFilter}
                   quarterFilter={quarterFilter}
+                  ledger={ledger}
                   companyConfig={companyConfig}
                 />
               )}
               {activeTab === 'Books' && (
                 <BooksModule 
-                  ledger={ledger}
                   yearFilter={yearFilter}
                   monthFilter={monthFilter}
                   quarterFilter={quarterFilter}
+                  ledger={ledger}
                   companyConfig={companyConfig}
                   showToast={showToast}
                 />
               )}
               {activeTab === 'FS' && (
                 <FSModule 
-                  ledger={ledger}
                   yearFilter={yearFilter}
                   monthFilter={monthFilter}
                   quarterFilter={quarterFilter}
+                  ledger={ledger}
                   companyName={companyConfig.companyName}
                 />
               )}
               {activeTab === 'COA' && (
-                <COAModule 
+                <COAModule
+                  yearFilter={yearFilter}
+                  monthFilter={monthFilter}
+                  quarterFilter={quarterFilter}
                   ledger={ledger}
                   showToast={showToast}
                 />
@@ -1235,8 +1198,9 @@ export default function App() {
               )}
             </motion.div>
           </AnimatePresence>
-        </main>
-      </div>
+        </React.Suspense>
+      </main>
+    </div>
 
       {/* MODALS CONTROLS */}
       <EntryModal 
@@ -1289,18 +1253,18 @@ export default function App() {
       />
 
       <AICopilot 
+                  yearFilter={yearFilter}
+                  monthFilter={monthFilter}
+                  quarterFilter={quarterFilter}
         isOpen={isAICopilotOpen}
         onClose={() => setIsAICopilotOpen(false)}
         ledger={ledger}
         companyName={companyConfig.companyName}
-        yearFilter={yearFilter}
-        monthFilter={monthFilter}
-        quarterFilter={quarterFilter}
       />
 
       {/* FLOATING ACTION TOAST NOTIFICATIONS */}
       <div className="fixed bottom-6 right-6 z-[300] space-y-2 max-w-sm pointer-events-none no-print">
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
           {toasts.map(toast => (
             <motion.div
               key={toast.id}
@@ -1324,5 +1288,17 @@ export default function App() {
         </AnimatePresence>
       </div>
     </div>
+    );
+  };
+
+  return (
+    <React.Suspense fallback={
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-zinc-950 text-white z-[9999] fixed inset-0">
+        <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-zinc-400 font-medium animate-pulse tracking-wide uppercase text-sm">Loading Workspace Module...</p>
+      </div>
+    }>
+      {renderAppContent()}
+    </React.Suspense>
   );
 }

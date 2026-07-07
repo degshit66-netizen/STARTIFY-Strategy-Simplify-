@@ -84,3 +84,5 @@ export const AuditTrailModule: React.FC<AuditTrailModuleProps> = () => {
     </div>
   );
 };
+
+export default AuditTrailModule;

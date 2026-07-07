@@ -324,3 +324,5 @@ export const DisbursementVoucherModal: React.FC<DisbursementVoucherModalProps> =
     </div>
   );
 };
+
+export default DisbursementVoucherModal;

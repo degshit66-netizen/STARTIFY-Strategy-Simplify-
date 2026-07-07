@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, File, Trash2, Download, ExternalLink, Loader2, 
   Search, Filter, Edit2, Check, X, Printer, Eye, MoreVertical
@@ -11,6 +11,80 @@ interface UploadedFile {
   size: number;
   time: string;
   type?: string;
+}
+
+// --- IndexedDB Local Storage Manager ---
+const DB_NAME = 'StratifyMediaDB';
+const STORE_NAME = 'media_files';
+
+function initDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = (e: any) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'name' });
+      }
+    };
+    request.onsuccess = (e: any) => resolve(e.target.result);
+    request.onerror = (e: any) => reject(request.error);
+  });
+}
+
+async function saveFileToDB(file: UploadedFile): Promise<void> {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.put(file);
+    request.onsuccess = () => resolve();
+    request.onerror = (e: any) => reject(request.error);
+  });
+}
+
+async function getFilesFromDB(): Promise<UploadedFile[]> {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = (e: any) => reject(request.error);
+  });
+}
+
+async function deleteFileFromDB(name: string): Promise<void> {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.delete(name);
+    request.onsuccess = () => resolve();
+    request.onerror = (e: any) => reject(request.error);
+  });
+}
+
+async function renameFileInDB(oldName: string, newName: string): Promise<void> {
+  const db = await initDB();
+  return new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    const getRequest = store.get(oldName);
+    
+    getRequest.onsuccess = () => {
+      const file = getRequest.result;
+      if (file) {
+        store.delete(oldName);
+        const updated = { ...file, name: newName };
+        const putRequest = store.put(updated);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = (err) => reject(err);
+      } else {
+        resolve();
+      }
+    };
+    getRequest.onerror = () => reject(getRequest.error);
+  });
 }
 
 export const FileModule: React.FC = () => {
@@ -33,13 +107,44 @@ export const FileModule: React.FC = () => {
   const fetchFiles = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/files');
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        setFiles(data);
+      
+      // 1. Get from IndexedDB
+      let localFiles: UploadedFile[] = [];
+      try {
+        localFiles = await getFilesFromDB();
+      } catch (e) {
+        console.error('Failed to load files from local IndexedDB:', e);
       }
+
+      // 2. Get from server folder
+      let serverFiles: UploadedFile[] = [];
+      try {
+        const response = await fetch('/api/files');
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            serverFiles = data;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch files from server folder:', err);
+      }
+
+      // 3. Merge files, preferring local IndexedDB copies (which have base64 offline data URL)
+      const merged: Record<string, UploadedFile> = {};
+      serverFiles.forEach(f => {
+        merged[f.name] = f;
+      });
+      localFiles.forEach(f => {
+        merged[f.name] = f;
+      });
+
+      const sortedFiles = Object.values(merged).sort(
+        (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
+      );
+      setFiles(sortedFiles);
     } catch (err) {
-      console.error('Failed to fetch files:', err);
+      console.error('Failed to synchronize archive files:', err);
     } finally {
       setIsLoading(false);
     }
@@ -49,25 +154,49 @@ export const FileModule: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setError('File size too large. Max 5MB allowed.');
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File size too large. Max 10MB allowed.');
       return;
     }
 
     setIsUploading(true);
     setError('');
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
+      // 1. Convert to Base64 for secure local persistence in IndexedDB
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = (err) => reject(err);
+        reader.readAsDataURL(file);
       });
 
-      if (!response.ok) throw new Error('Upload failed');
+      const base64Data = await base64Promise;
+
+      const localRecord: UploadedFile = {
+        name: file.name,
+        url: base64Data,
+        size: file.size,
+        time: new Date().toISOString(),
+        type: file.type
+      };
+
+      // Save to IndexedDB
+      await saveFileToDB(localRecord);
+
+      // 2. Backup to server-side physical folder
+      const formData = new FormData();
+      formData.append('file', file);
       
+      try {
+        await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+      } catch (err) {
+        console.warn('Backend folder backup failed (relying on browser LocalDB instead):', err);
+      }
+
       await fetchFiles();
     } catch (err) {
       setError('Failed to upload file. Please try again.');
@@ -79,19 +208,27 @@ export const FileModule: React.FC = () => {
   };
 
   const handleRename = async (oldName: string) => {
-    if (!newName.trim() || newName === oldName) {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === oldName) {
       setEditingFile(null);
       return;
     }
 
     try {
-      const response = await fetch(`/api/files/${encodeURIComponent(oldName)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newName: newName.trim() }),
-      });
+      // 1. Rename in IndexedDB local store
+      await renameFileInDB(oldName, trimmed);
 
-      if (!response.ok) throw new Error('Rename failed');
+      // 2. Try to rename on server
+      try {
+        await fetch(`/api/files/${encodeURIComponent(oldName)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newName: trimmed }),
+        });
+      } catch (err) {
+        console.warn('Server rename failed (offline fallback):', err);
+      }
+
       await fetchFiles();
       setEditingFile(null);
     } catch (err) {
@@ -102,11 +239,18 @@ export const FileModule: React.FC = () => {
   const handleDelete = async (filename: string) => {
     setIsDeleting(filename);
     try {
-      const response = await fetch(`/api/files/${encodeURIComponent(filename)}`, {
-        method: 'DELETE',
-      });
+      // 1. Delete from IndexedDB local store
+      await deleteFileFromDB(filename);
 
-      if (!response.ok) throw new Error('Delete failed');
+      // 2. Try to delete from server folder
+      try {
+        await fetch(`/api/files/${encodeURIComponent(filename)}`, {
+          method: 'DELETE',
+        });
+      } catch (err) {
+        console.warn('Server delete failed (offline fallback):', err);
+      }
+
       await fetchFiles();
     } catch (err) {
       setError('Failed to delete file.');
@@ -417,3 +561,5 @@ export const FileModule: React.FC = () => {
     </div>
   );
 };
+
+export default FileModule;

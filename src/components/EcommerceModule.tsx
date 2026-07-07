@@ -227,7 +227,7 @@ export const EcommerceModule: React.FC<EcommerceModuleProps> = ({ handleSaveEntr
                         </span>
                       </div>
                       <h4 className="font-bold text-sm text-zinc-900 dark:text-zinc-100 line-clamp-2">{p.item}</h4>
-                      <p className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-auto">{formatCurrency(p.price.toString())}</p>
+                      <p className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-auto">{formatCurrency(p.price || 0)}</p>
                     </button>
                   ))}
                 </div>
@@ -295,7 +295,7 @@ export const EcommerceModule: React.FC<EcommerceModuleProps> = ({ handleSaveEntr
               <div className="flex justify-between items-end mb-4">
                 <span className="text-sm font-bold text-zinc-500 uppercase">Total Amount</span>
                 <span className="text-3xl font-black text-zinc-900 dark:text-zinc-100">
-                  {formatCurrency(cartTotal.toString())}
+                  {formatCurrency(cartTotal || 0)}
                 </span>
               </div>
               <button
@@ -361,7 +361,7 @@ export const EcommerceModule: React.FC<EcommerceModuleProps> = ({ handleSaveEntr
                       <td className="px-5 py-3 font-bold text-blue-600 dark:text-blue-400">{o.id}</td>
                       <td className="px-5 py-3">{o.date}</td>
                       <td className="px-5 py-3 font-medium">{o.customer}</td>
-                      <td className="px-5 py-3 text-right font-mono font-bold text-emerald-600">{formatCurrency(o.amount.toString())}</td>
+                      <td className="px-5 py-3 text-right font-mono font-bold text-emerald-600">{formatCurrency(o.amount || 0)}</td>
                       <td className="px-5 py-3 text-center">
                         <span className={`px-2 py-1 text-[10px] font-bold rounded-lg ${
                           o.status === 'Pending' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
@@ -586,3 +586,5 @@ export const EcommerceModule: React.FC<EcommerceModuleProps> = ({ handleSaveEntr
     </div>
   );
 };
+
+export default EcommerceModule;

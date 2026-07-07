@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { SubscriptionRequestModal } from './SubscriptionRequestModal';
 import { ConfirmPaymentModal } from './ConfirmPaymentModal';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle, ShieldAlert, Award, FileText, UserPlus, Trash2, Mail, User, Shield, Upload, Laptop, Smartphone, Tablet, DownloadCloud, Globe, RefreshCw, BookOpen, CreditCard } from 'lucide-react';
 import { deleteUserFromFirebase, syncTenantToFirebase, syncSubscriptionRequestToFirebase, deleteSubscriptionRequestFromFirebase } from '../lib/db';
 import { CompanyConfig, Tenant, User as SystemUser, LedgerEntry } from '../types';
@@ -47,7 +47,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // New Team Member inputs
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberName, setNewMemberName] = useState('');
-  const [newMemberRole, setNewMemberRole] = useState<'tenant_admin' | 'accountant' | 'staff'>('accountant');
+  const [newMemberRole, setNewMemberRole] = useState<'tenant_owner' | 'tenant_user'>('tenant_user');
 
   // Billing & Subscription states
   const [billingPlan, setBillingPlan] = useState<'monthly' | 'annual'>('monthly');
@@ -420,7 +420,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
-            transition={{ type: 'spring', duration: 0.3 }}
+            transition={{ type: 'spring' as any, duration: 0.3 }}
             className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] sm:w-full sm:max-w-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl z-[201] overflow-hidden flex flex-col justify-between"
           >
             <div>
@@ -694,9 +694,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           onChange={(e: any) => setNewMemberRole(e.target.value)}
                           className="w-full text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2 text-zinc-800 dark:text-zinc-200 focus:outline-none"
                         >
-                          <option value="tenant_admin">Admin / Manager</option>
-                          <option value="accountant">Senior Accountant</option>
-                          <option value="staff">Staff Bookkeeper</option>
+                          <option value="tenant_owner">Admin / Manager</option>
+                          <option value="tenant_user">Senior Accountant</option>
+                          <option value="tenant_user">Staff Bookkeeper</option>
                         </select>
                       </div>
                       <button 
