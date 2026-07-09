@@ -4,6 +4,7 @@ import App from './App.tsx';
 import './index.css';
 
 import { initializeLocalStorageOverride } from './lib/db';
+import { registerSW } from 'virtual:pwa-register';
 
 // OVERRIDE LOCALSTORAGE FOR TENANT ISOLATION AND FIRESTORE SYNC
 // OVERRIDE LOCALSTORAGE FOR TENANT ISOLATION AND FIRESTORE SYNC
@@ -13,13 +14,10 @@ initializeLocalStorageOverride().then(() => {
   );
 });
 
-// Register Service Worker for PWA
+// Register Service Worker for offline support and caching
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('Service Worker registered successfully!', reg))
-      .catch(err => console.error('Service Worker registration failed:', err));
-  });
+  registerSW({ immediate: true });
 }
+
 
 
